@@ -231,10 +231,7 @@ class BitgetTests {
     }
 
     public static void main(String[] args) {
-        AES256TextEncryptor textEncryptor = new AES256TextEncryptor();
-        textEncryptor.setPassword("*"); // 这是加密密钥，等下会用于解密
-        String encrypted = textEncryptor.encrypt("123456"); // 明文密码
-        System.out.println("ENC(" + encrypted + ")");
+       
     }
 
 }
