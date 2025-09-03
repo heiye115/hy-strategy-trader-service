@@ -77,7 +77,7 @@ java -jar hy-strategy-trader-service.jar
 ```
 
 - Linux下运行：
-    - ```bash
+    ```bash
     setsid java -Djasypt.encryptor.password=您的密码 -jar hy-strategy-trader-service.jar > app.log 2>&1 &
     ```
 
