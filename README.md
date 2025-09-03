@@ -36,8 +36,8 @@ HY策略交易服务是一个基于Bitget交易所API的自动化交易系统，
   - 日志记录
 
 ## 系统要求
-- Java 8+
-- Spring Boot 2.x
+- Java 21+
+- Spring Boot 3.5.x
 - Bitget API访问权限
 - 邮件服务器配置（可选）
 
@@ -56,11 +56,14 @@ bitget.base-url=https://api.bitget.com
 ```
 3. 构建项目
 ```bash
-mvn clean package
+mvn clean install -Dmaven.test.skip=true
 ```
 4. 运行服务
 ```bash
 java -jar hy-strategy-trader-service.jar
+
+Linux下运行
+setsid java -Djasypt.encryptor.password=您的密码 -jar hy-strategy-trader-service.jar > app.log 2>&1 &
 ```
 
 ## 使用说明
