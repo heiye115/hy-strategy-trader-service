@@ -1,52 +1,63 @@
 # HY Strategy Trading Service
 
-## Project Introduction
-HY Strategy Trading Service is an automated trading system based on the Bitget Exchange API, providing implementations of various quantitative trading strategies. This service supports real-time market data monitoring, automatic order placement, and profit-taking and stop-loss management functions.
+## Project Overview
 
-## Key Features
+HY Strategy Trading Service is an automated trading system based on the Bitget exchange API, providing implementations
+for various quantitative trading strategies. The service supports real-time market data monitoring, automatic order
+placement, take-profit and stop-loss management, and other features.
+
+## Main Features
+
 - **Trading Strategies**
-  - Dual Moving Average Trading Strategy (V1/V2)
-  - Range Trading Strategy (V5/V6/V7)
+    - Dual Moving Average Strategy (V1/V2)
+    - Range Oscillation Trading Strategy (V5/V6/V7)
 - **Account Management**
-  - Leverage Settings
-  - Margin Mode Management
-  - Position Mode Configuration
+    - Leverage settings
+    - Margin mode management
+    - Position mode settings
 - **Order Management**
-  - Real-time Order Placement
-  - Take Profit/Stop Loss Orders
-  - Order Status Monitoring
+    - Real-time order placement
+    - Take-profit and stop-loss orders
+    - Order status monitoring
 - **Market Data**
-  - Real-time Market Data Subscription
-  - Historical K-line Data Retrieval
-  - Market Signal Analysis
+    - Real-time market subscription
+    - Historical K-line data retrieval
+    - Market signal analysis
 
 ## Technical Architecture
-This project is developed using the Spring Boot framework with a modular design:
-- **Core Module**
-  - Bitget API Client
-  - Trading Strategy Implementation
-  - Task Scheduling System
+
+This project is developed based on the Spring Boot framework with a modular design:
+
+- **Core Modules**
+    - Bitget API client
+    - Trading strategy implementation
+    - Task scheduling system
 - **Functional Modules**
-  - Market Data Analysis
-  - Order Execution Engine
-  - Risk Control System
-- **Integrated Services**
-  - Email Notifications
-  - Thread Pool Management
-  - Logging
+    - Market data analysis
+    - Order execution engine
+    - Risk control system
+- **Integration Services**
+    - Email notification
+    - Thread pool management
+    - Logging
 
 ## System Requirements
-- Java 8+
-- Spring Boot 2.x
-- Bitget API Access
-- Email Server Configuration (Optional)
+
+- Java 21+
+- Spring Boot 3.5.x
+- Bitget API access
+- Email server configuration (optional)
 
 ## Installation & Deployment
+
 1. Clone the repository
+
 ```bash
 git clone https://gitee.com/heiye115/hy-strategy-trader-service.git
 ```
-2. Configure Bitget API Credentials
+
+2. Configure Bitget API credentials
+
 ```properties
 # application.properties
 bitget.api-Key=your_api_key
@@ -54,33 +65,46 @@ bitget.secret-key=your_secret_key
 bitget.passphrase=your_passphrase
 bitget.base-url=https://api.bitget.com
 ```
+
 3. Build the project
+
 ```bash
-mvn clean package
+mvn clean install -Dmaven.test.skip=true
 ```
+
 4. Run the service
+
 ```bash
 java -jar hy-strategy-trader-service.jar
+
+For Linux:
+setsid java -Djasypt.encryptor.password=your_password -jar hy-strategy-trader-service.jar > app.log 2>&1 &
 ```
 
 ## Usage Instructions
+
 1. **Start the Service**
+
 ```java
-// Main startup class
+// Main class to start
 com.hy.HyStratTraderServiceApplication
 ```
 
 2. **Strategy Configuration**
-- Configure trading parameters in the strategy service class:
-  - Trading Pair (e.g., BTC/USDT)
-  - Timeframe (e.g., 1h, 4h)
-  - Position Size
-  - Take Profit/Stop Loss Ratios
-  - Leverage Settings
 
-3. **Start the Strategy**
-- Inject and start the desired strategy via Spring:
+- Configure trading parameters in the strategy service class:
+    - Trading pair (BTC/USDT, etc.)
+    - Time period (1h, 4h, etc.)
+    - Position size
+    - Take-profit and stop-loss ratios
+    - Leverage settings
+
+3. **Start Strategy**
+
+- Use Spring injection to start the specified strategy:
+
 ```java
+
 @Autowired
 private DualMovingAverageStrategyV2Service dualMovingAverageStrategyService;
 
@@ -89,49 +113,75 @@ private RangeTradingStrategyV7Service rangeTradingStrategyService;
 ```
 
 ## API Interface
-The service encapsulates the complete API interface of Bitget Exchange, including:
+
+The service encapsulates the complete Bitget exchange API, including:
+
 - **Market Data**
-  - Retrieve K-line Data
-  - Real-time Market Data Subscription
-  - Order Book Depth Query
+    - Get K-line data
+    - Real-time market subscription
+    - Depth order book query
 - **Trading Functions**
-  - Place/Cancel Orders
-  - Take Profit/Stop Loss Order Management
-  - Order Status Inquiry
+    - Place/cancel orders
+    - Take-profit and stop-loss order management
+    - Order status query
 - **Account Management**
-  - Account Information Query
-  - Leverage Settings
-  - Margin Mode Management
+    - Account information query
+    - Leverage settings
+    - Margin mode management
 
 ## Strategy Implementation
-### Dual Moving Average Strategy
-Generates trading signals based on two moving averages with different periods:
-- A buy signal is generated when the short-term moving average crosses above the long-term moving average
-- A sell signal is generated when the short-term moving average crosses below the long-term moving average
 
-### Range Trading Strategy
-Performs trading within identified price ranges:
-- Automatically identifies recent price fluctuations
-- Sets dynamic take profit and stop loss levels
+### Dual Moving Average Strategy
+
+Generates trading signals based on two moving averages of different periods:
+
+- Buy signal when the short-term MA crosses above the long-term MA
+- Sell signal when the short-term MA crosses below the long-term MA
+
+### Range Oscillation Strategy
+
+Identifies price oscillation ranges for buying low and selling high:
+
+- Automatically identifies recent price fluctuation ranges
+- Sets dynamic take-profit and stop-loss
 - Supports historical K-line data analysis
 
 ## Task Scheduling
-Scheduled tasks are implemented using Spring's @Scheduled annotation:
-- Market Data Monitoring (1-second interval)
-- Trading Signal Detection (10-second interval)
-- Order Status Synchronization (200-millisecond interval)
-- Position Management (2-second interval)
+
+Uses Spring's @Scheduled for scheduled tasks:
+
+- Market data monitoring (1 second interval)
+- Trading signal detection (10 seconds interval)
+- Order status synchronization (200 milliseconds interval)
+- Position management (2 seconds interval)
 
 ## Logging & Monitoring
-- Comprehensive trading log recording
+
+- Complete trading log records
 - Exception handling mechanism
-- Email notification functionality
+- Email notification function
 
 ## Security Notes
-- API keys should be properly safeguarded
-- It is recommended to use a dedicated trading account
+
+- API keys should be kept safe
+- It is recommended to use a separate trading account
 - Set appropriate risk control parameters
 - Regularly monitor trading logs
 
-## Open Source License
-This project is licensed under the Apache-2.0 License. Code contributions and suggestions are welcome.
+## Business Cooperation
+
+We undertake quantitative trading strategy development and customization services. Contact: heiye115@gmail.com
+
+- **Note**
+    - Use my invitation code xq5v
+    - Bitget Spot 50%｜Contract 50%｜On-chain trading 40% fee discount
+    - Spot: 0.05% 👈⏬0.1%
+    - Contract limit: 0.01% 👈⏬0.02%
+    - Contract market: 0.03% 👈⏬0.06%
+    - On-chain trading: 0.3% 👈⏬0.5%
+    - https://www.bitget.cloud/zh-CN/register?channelCode=327r&vipCode=xq5v
+
+## Disclaimer
+
+This project is for learning and research purposes only. Users bear their own trading risks. The author is not
+responsible for any losses resulting from the use of this project.
