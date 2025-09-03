@@ -9,8 +9,8 @@ placement, take-profit and stop-loss management, and other features.
 ## Main Features
 
 - **Trading Strategies**
-    - Dual Moving Average Strategy (V1/V2)
-    - Range Oscillation Trading Strategy (V5/V6/V7)
+    - Dual Moving Average Strategy (V2)
+    - Range Oscillation Trading Strategy (V7)
 - **Account Management**
     - Leverage settings
     - Margin mode management

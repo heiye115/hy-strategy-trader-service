@@ -74,10 +74,12 @@ mvn clean install -Dmaven.test.skip=true
 
 ```bash
 java -jar hy-strategy-trader-service.jar
-
-Linux下运行
-setsid java -Djasypt.encryptor.password=您的密码 -jar hy-strategy-trader-service.jar > app.log 2>&1 &
 ```
+
+- Linux下运行：
+    - ```bash
+    setsid java -Djasypt.encryptor.password=您的密码 -jar hy-strategy-trader-service.jar > app.log 2>&1 &
+    ```
 
 ## 使用说明
 
