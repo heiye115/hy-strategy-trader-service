@@ -3,9 +3,15 @@
 ## 项目简介
 
 HY策略交易服务是一个基于Bitget交易所API的自动化交易系统，提供多种量化交易策略实现。该服务支持实时市场数据监控、自动下单、止盈止损管理等功能。
+
 - 备注:
-使用我的邀请码xq5v注册Bitget 交易手续费减免50% 每天自动返还到您的账号
-https://www.bitget.cloud/zh-CN/register?channelCode=327r&vipCode=xq5v
+  使用我的邀请码xq5v注册Bitget
+- Bitget 现货50%｜合约50%｜链上交易40%手续费减免
+  现货：0.05%👈⏬0.1%
+  合约限价：0.01%👈⏬0.02%  
+  合约市价：0.03%👈⏬0.06%
+  链上交易：0.3%👈⏬0.5%
+- https://www.bitget.cloud/zh-CN/register?channelCode=327r&vipCode=xq5v
 
 ## 主要功能
 
