@@ -123,8 +123,7 @@ class ShortTermTradingStrategyV1ServiceTests {
 
         System.out.println("币种: " + symbol + " 区间数量: " + candles.size());
         System.out.println("最高均价: " + highPriceAvg + " 最低均价: " + lowPriceAvg);
-        System.out.println("最高价K线时间: " + DateUtil.formatDateTime(new Date(highPriceCandle.getTimestamp())) + " 最高价: " + highPriceCandle.getHighPrice() + " 开盘价: " + highPriceCandle.getOpenPrice() + " 收盘价: " + highPriceCandle.getClosePrice());
-        System.out.println("最低价K线时间: " + DateUtil.formatDateTime(new Date(lowPriceCandle.getTimestamp())) + " 最低价: " + lowPriceCandle.getLowPrice() + " 开盘价: " + lowPriceCandle.getOpenPrice() + " 收盘价: " + lowPriceCandle.getClosePrice());
+        System.out.println("最高价: " + highPriceCandle.getHighPrice() + " 最高价K线时间: " + DateUtil.formatDateTime(new Date(highPriceCandle.getTimestamp())) + " 最低价: " + lowPriceCandle.getLowPrice() + " 最低价K线时间: " + DateUtil.formatDateTime(new Date(lowPriceCandle.getTimestamp())));
         System.out.println("-----------------------------------");
     }
 

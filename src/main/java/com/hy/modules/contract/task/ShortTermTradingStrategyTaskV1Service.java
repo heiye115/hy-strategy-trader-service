@@ -4,10 +4,9 @@ import com.hy.modules.contract.service.ShortTermTradingStrategyV1Service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 @Slf4j
-@Service
+//@Service
 public class ShortTermTradingStrategyTaskV1Service {
 
     private final ShortTermTradingStrategyV1Service shortTermTradingStrategyV1Service;
@@ -42,7 +41,7 @@ public class ShortTermTradingStrategyTaskV1Service {
             log.error("kLineMonitoring-error", e);
         }
     }
- 
+
 
     /**
      * 获取行情数据
