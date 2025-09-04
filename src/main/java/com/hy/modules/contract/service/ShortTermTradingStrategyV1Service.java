@@ -409,8 +409,8 @@ public class ShortTermTradingStrategyV1Service {
         }
 
         // 判断是否在买入区间
-        //if (gte(latestPrice, downLowPrice) && lte(latestPrice, upLowPrice)) {
-        if (true) {
+        if (gte(latestPrice, downLowPrice) && lte(latestPrice, upLowPrice)) {
+            //if (true) {
             BigDecimal presetStopLossPrice = lowPrice.multiply(STOP_LOSS_LOWER_MULTIPLIER).setScale(pricePlace, RoundingMode.HALF_UP);
             order.setSide(BG_SIDE_BUY);
             order.setPresetStopLossPrice(presetStopLossPrice);
