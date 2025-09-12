@@ -164,6 +164,14 @@ public class MartingaleStrategyService {
         }
     }
 
+    /**
+     * 启动马丁策略
+     **/
+    public void startMartingaleStrategy() {
+        // 启动马丁策略逻辑
+        log.info("startMartingaleStrategy-启动马丁策略");
+    }
+
 
     /**
      * 启动订单消费者
