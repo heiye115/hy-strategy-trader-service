@@ -550,7 +550,7 @@ public class RangeTradingStrategyV7Service {
 
                         // 计算开仓参数
                         calculateOrderParameters(orderParam, leverage);
-                        log.info("startOrderConsumer: 准备下单，订单:{}", JsonUtil.toJson(orderParam));
+                        log.info("startOrderConsumer: 准备下单，订单:{} 区间价格信息:{}", JsonUtil.toJson(orderParam), JsonUtil.toJson(RANGE_PRICE_CACHE.get(orderParam.getSymbol())));
 
                         // 执行下单
                         ResponseResult<BitgetPlaceOrderResp> orderResult = executeOrder(orderParam);
