@@ -6,7 +6,7 @@ import com.bitget.openapi.common.domain.ClientParameter;
 import com.bitget.openapi.common.enums.SignTypeEnum;
 import com.bitget.openapi.common.enums.SupportedLocaleEnum;
 import com.bitget.openapi.dto.response.ResponseResult;
-import com.hy.common.service.BitgetCustomService;
+import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.service.DualMovingAverageStrategyV1Service;
 import org.jasypt.util.text.AES256TextEncryptor;
@@ -43,7 +43,7 @@ class BitgetTests {
     private String wsPrivateUrl;
 
     @Autowired
-    BitgetCustomService bitgetCustomService;
+    BitgetOldCustomService bitgetCustomService;
 
     @Autowired
     DualMovingAverageStrategyV1Service dualMovingAverageStrategyService;
@@ -231,7 +231,7 @@ class BitgetTests {
     }
 
     public static void main(String[] args) {
-       
+
     }
 
 }

@@ -10,7 +10,7 @@ import com.bitget.openapi.dto.request.ws.SubscribeReq;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.hy.common.enums.BitgetEnum;
 import com.hy.common.enums.SymbolEnum;
-import com.hy.common.service.BitgetCustomService;
+import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.*;
@@ -53,7 +53,7 @@ public class RangeTradingStrategyV7Service {
     /**
      * Bitget API服务
      */
-    private final BitgetCustomService bitgetCustomService;
+    private final BitgetOldCustomService bitgetCustomService;
 
     /**
      * 邮件通知服务
@@ -165,7 +165,7 @@ public class RangeTradingStrategyV7Service {
     private final static Map<String, Long> DELAY_OPEN_TIME_MAP = STRATEGY_CONFIG_MAP.values().stream()
             .collect(Collectors.toMap(RangePriceStrategyConfig::getSymbol, v -> 0L));
 
-    public RangeTradingStrategyV7Service(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
+    public RangeTradingStrategyV7Service(BitgetOldCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.bitgetCustomService = bitgetCustomService;
         this.mailService = mailService;
         this.taskExecutor = executor;

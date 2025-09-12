@@ -3,7 +3,7 @@ package com.hy;
 import cn.hutool.core.date.DateUtil;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.response.ResponseResult;
-import com.hy.common.service.BitgetCustomService;
+import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.service.RangeTradingStrategyV5Service;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class RangeTradingStrategyV5ServiceTests {
 
 
     @Autowired
-    BitgetCustomService bitgetCustomService;
+    BitgetOldCustomService bitgetCustomService;
 
     @Autowired
     RangeTradingStrategyV5Service rangeTradingStrategyV5Service;

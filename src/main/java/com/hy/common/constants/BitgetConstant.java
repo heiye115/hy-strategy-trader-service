@@ -3,6 +3,16 @@ package com.hy.common.constants;
 public final class BitgetConstant {
 
     /**
+     * 马丁账号名称
+     **/
+    public static final String MARTINGALE_ACCOUNT = "martingale";
+
+    /**
+     * 区间交易账号名称
+     **/
+    public static final String RANGE_TRADING_ACCOUNT = "range";
+
+    /**
      * 默认币 USDT
      **/
     public static final String DEFAULT_CURRENCY_USDT = "USDT";

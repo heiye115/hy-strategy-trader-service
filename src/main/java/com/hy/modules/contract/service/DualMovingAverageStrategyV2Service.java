@@ -9,7 +9,7 @@ import com.bitget.openapi.dto.request.ws.SubscribeReq;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.hy.common.enums.BitgetEnum;
 import com.hy.common.enums.SymbolEnum;
-import com.hy.common.service.BitgetCustomService;
+import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.DualMovingAverageOrder;
 import com.hy.modules.contract.entity.DualMovingAveragePlaceOrder;
@@ -49,7 +49,7 @@ public class DualMovingAverageStrategyV2Service {
     /**
      * Bitget自定义服务类
      **/
-    private final BitgetCustomService bitgetCustomService;
+    private final BitgetOldCustomService bitgetCustomService;
 
     /**
      * 线程池
@@ -98,7 +98,7 @@ public class DualMovingAverageStrategyV2Service {
      **/
     private final static Map<String, Boolean> allowOpenMap = configMap.values().stream().collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> false));
 
-    public DualMovingAverageStrategyV2Service(BitgetCustomService bitgetCustomService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
+    public DualMovingAverageStrategyV2Service(BitgetOldCustomService bitgetCustomService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.bitgetCustomService = bitgetCustomService;
         this.taskExecutor = executor;
     }

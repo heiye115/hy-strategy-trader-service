@@ -4,7 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import com.bitget.custom.entity.BitgetMixMarketCandlesResp;
 import com.bitget.custom.entity.BitgetOrdersPlanPendingResp;
 import com.bitget.openapi.dto.response.ResponseResult;
-import com.hy.common.service.BitgetCustomService;
+import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.CandlesDate;
 import com.hy.modules.contract.entity.RangePriceStrategyConfig;
@@ -30,7 +30,7 @@ class RangeTradingStrategyV6ServiceTests {
 
 
     @Autowired
-    BitgetCustomService bitgetCustomService;
+    BitgetOldCustomService bitgetCustomService;
 
     @Autowired
     RangeTradingStrategyV6Service rangeTradingStrategyV6Service;

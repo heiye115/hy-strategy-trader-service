@@ -6,7 +6,7 @@ import com.bitget.custom.entity.BitgetWSMarketResp;
 import com.bitget.openapi.dto.request.ws.SubscribeReq;
 import com.bitget.openapi.ws.BitgetWsClient;
 import com.bitget.openapi.ws.SubscriptionListener;
-import com.hy.common.service.BitgetCustomService;
+import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
 import org.junit.jupiter.api.Test;
@@ -24,7 +24,7 @@ import java.util.concurrent.CountDownLatch;
 class HyStratTraderServiceApplicationTests {
 
     @Autowired
-    BitgetCustomService bitgetCustomService;
+    BitgetOldCustomService bitgetCustomService;
 
     @Autowired
     MailService mailService;
