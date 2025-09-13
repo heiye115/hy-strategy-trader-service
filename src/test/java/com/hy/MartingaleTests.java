@@ -28,9 +28,14 @@ public class MartingaleTests {
         public String toString() {
             return String.format("第%d单: 价格=%s, 保证金=%s, 累计幅度=%s%%",
                     index,
-                    price.setScale(4, RoundingMode.HALF_UP),
-                    margin.setScale(4, RoundingMode.HALF_UP),
-                    cumulativeStep.multiply(BigDecimal.valueOf(100)).setScale(4, RoundingMode.HALF_UP));
+                    price,
+                    margin,
+                    cumulativeStep.multiply(BigDecimal.valueOf(100)));
+//            return String.format("第%d单: 价格=%s, 保证金=%s, 累计幅度=%s%%",
+//                    index,
+//                    price.setScale(4, RoundingMode.HALF_UP),
+//                    margin.setScale(4, RoundingMode.HALF_UP),
+//                    cumulativeStep.multiply(BigDecimal.valueOf(100)).setScale(4, RoundingMode.HALF_UP));
         }
     }
 
@@ -91,7 +96,7 @@ public class MartingaleTests {
         BigDecimal baseStep = new BigDecimal("0.01");         // 1%
         BigDecimal amountMultiplier = new BigDecimal("1.1");  // 加仓金额倍数
         BigDecimal stepMultiplier = new BigDecimal("1.1");    // 加仓价差倍数
-        BigDecimal leverage = new BigDecimal("1");           // 杠杆倍数
+        BigDecimal leverage = new BigDecimal("100");           // 杠杆倍数
         BigDecimal baseMargin = new BigDecimal("100.0");      // 初始加仓单保证金
         int maxAddCount = 20;
 

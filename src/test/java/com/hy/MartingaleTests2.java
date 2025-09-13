@@ -102,7 +102,7 @@ public class MartingaleTests2 {
         BigDecimal baseStep = new BigDecimal("0.01");         // 1%
         BigDecimal amountMultiplier = new BigDecimal("1.1");  // 加仓金额倍数
         BigDecimal stepMultiplier = new BigDecimal("1.1");    // 加仓价差倍数
-        BigDecimal leverage = new BigDecimal("1");            // 杠杆倍数
+        BigDecimal leverage = new BigDecimal("100");            // 杠杆倍数
         BigDecimal maxTotalMargin = new BigDecimal("1000"); // 最大投入保证金
         int maxAddCount = 20;
 
