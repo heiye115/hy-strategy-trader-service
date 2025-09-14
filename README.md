@@ -10,6 +10,7 @@ HY策略交易服务是一个基于Bitget交易所API的自动化交易系统，
     - 双均线策略 (V2) 适合趋势行情 高盈亏比 支持多空双向
     - 区间震荡策略 (V7) 适合宽幅震荡或波段行情 胜率和盈亏比均衡 支持多空双向
     - 短线策略 (V1) 适合短线行情 高胜率 支持多空双向
+    - 马丁格尔策略 适合震荡行情 高胜率 支持多空双向
 - **账户管理**
     - 杠杆设置
     - 保证金模式管理
@@ -59,10 +60,14 @@ git clone https://gitee.com/heiye115/hy-strategy-trader-service.git
 
 ```properties
 # application.properties
-bitget.api-Key=your_api_key
-bitget.secret-key=your_secret_key
-bitget.passphrase=your_passphrase
-bitget.base-url=https://api.bitget.com
+# 第1个账号 马丁格尔策略专用API Key
+bitget.accounts[0].api-key=您的API Key
+bitget.accounts[0].secret-key=您的Secret Key
+bitget.accounts[0].passphrase=您的Passphrase
+# 第2个账号 双均线策略专用API Key
+bitget.accounts[1].api-key=您的API Key
+bitget.accounts[1].secret-key=您的Secret Key
+bitget.accounts[1].passphrase=您的Passphrase
 ```
 
 3. 构建项目
