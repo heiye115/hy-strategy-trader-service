@@ -326,7 +326,7 @@ public class MartingaleStrategyService {
             Integer pricePlace = config.getPricePlace();
             Integer volumePlace = config.getVolumePlace();
 
-            List<MartingaleOrderLevel> plan = MartingaleStrategyService.generateOrderPlanMaxMargin(
+            List<MartingaleOrderLevel> plan = generateOrderPlanMaxMargin(
                     entryPrice, baseStep, maxAddCount, amountMultiplier,
                     stepMultiplier, leverage, maxTotalMargin, direction,
                     pricePlace, volumePlace
