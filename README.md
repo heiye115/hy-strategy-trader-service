@@ -177,6 +177,7 @@ private RangeTradingStrategyV7Service rangeTradingStrategyService;
 
 ## 安全注意事项
 
+- 强烈建议使用子账户进行API操作
 - API密钥应妥善保管
 - 建议使用独立的交易账户
 - 设置适当的风控参数
