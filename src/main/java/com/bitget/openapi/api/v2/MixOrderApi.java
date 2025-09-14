@@ -20,13 +20,13 @@ public interface MixOrderApi {
     Call<ResponseResult> orderDetail(@QueryMap Map<String, String> paramMap);
 
     @POST("/api/v2/mix/order/batch-place-order")
-    Call<ResponseResult> batchPlaceOrder(@Body Map<String, String> paramMap);
+    Call<ResponseResult> batchPlaceOrder(@Body Map<String, Object> paramMap);
 
     @POST("/api/v2/mix/order/cancel-order")
     Call<ResponseResult> cancelOrder(@Body Map<String, String> paramMap);
 
     @POST("/api/v2/mix/order/batch-cancel-orders")
-    Call<ResponseResult> batchCancelOrders(@Body Map<String, String> paramMap);
+    Call<ResponseResult> batchCancelOrders(@Body Map<String, Object> paramMap);
 
     @GET("/api/v2/mix/order/orders-history")
     Call<ResponseResult> ordersHistory(@QueryMap Map<String, String> paramMap);

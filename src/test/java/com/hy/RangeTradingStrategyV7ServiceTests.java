@@ -6,12 +6,13 @@ import com.bitget.custom.entity.BitgetMixMarketCandlesResp;
 import com.bitget.custom.entity.BitgetOrderDetailResp;
 import com.bitget.custom.entity.BitgetOrdersPlanPendingResp;
 import com.bitget.openapi.dto.response.ResponseResult;
-import com.hy.common.service.BitgetOldCustomService;
+import com.hy.common.enums.BitgetAccountType;
+import com.hy.common.service.BitgetCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.CandlesDate;
 import com.hy.modules.contract.entity.RangePriceStrategyConfig;
-import com.hy.modules.contract.service.RangeTradingStrategyV6Service;
 import com.hy.modules.contract.service.RangeTradingStrategyV7Service;
+import com.hy.modules.history.service.RangeTradingStrategyV6Service;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,15 +26,15 @@ import java.util.stream.Collectors;
 import static com.hy.common.constants.BitgetConstant.*;
 import static com.hy.common.utils.num.BigDecimalUtils.gte;
 import static com.hy.common.utils.num.BigDecimalUtils.lte;
-import static com.hy.modules.contract.service.RangeTradingStrategyV6Service.STRATEGY_CONFIG_MAP;
-import static com.hy.modules.contract.service.RangeTradingStrategyV6Service.distinctAndSortByTimestamp;
+import static com.hy.modules.history.service.RangeTradingStrategyV6Service.STRATEGY_CONFIG_MAP;
+import static com.hy.modules.history.service.RangeTradingStrategyV6Service.distinctAndSortByTimestamp;
 
 @SpringBootTest
 class RangeTradingStrategyV7ServiceTests {
 
 
     @Autowired
-    BitgetOldCustomService bitgetCustomService;
+    BitgetCustomService bitgetCustomService;
 
     @Autowired
     RangeTradingStrategyV7Service rangeTradingStrategyV7Service;
@@ -48,10 +49,12 @@ class RangeTradingStrategyV7ServiceTests {
 
     @Test
     public void t0() throws IOException {
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+
         List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
         List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
         for (CandlesDate date : candlesDate) {
-            ResponseResult<List<BitgetMixMarketCandlesResp>> btcusdt = bitgetCustomService.getMixMarketHistoryCandles("BTCUSDT", "USDT-FUTURES", "1H", 200, date.getStartTime().toString(), date.getEndTime().toString());
+            ResponseResult<List<BitgetMixMarketCandlesResp>> btcusdt = bitgetSession.getMixMarketHistoryCandles("BTCUSDT", "USDT-FUTURES", "1H", 200, date.getStartTime().toString(), date.getEndTime().toString());
             //System.out.println("BTCUSDT K线数据: " + JsonUtil.toJson(btcusdt));
             candles.addAll(btcusdt.getData());
         }
@@ -67,8 +70,10 @@ class RangeTradingStrategyV7ServiceTests {
 
     @Test
     public void getAllPosition() throws IOException {
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+
         // 获取当前持仓
-        ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetCustomService.getAllPosition();
+        ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetSession.getAllPosition();
         if (!BG_RESPONSE_CODE_SUCCESS.equals(positionResp.getCode())) {
             return;
         }
@@ -79,13 +84,15 @@ class RangeTradingStrategyV7ServiceTests {
 
     @Test
     public void getOrdersPlanPending() throws IOException {
-        ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetCustomService.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+        ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetSession.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
         System.out.println(JsonUtil.toJson(planResp));
     }
 
     @Test
     public void t3() throws IOException {
-        ResponseResult<BitgetOrderDetailResp> orderDetailResult = bitgetCustomService.getOrderDetail("BTCUSDT", "1346526727812231168");
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+        ResponseResult<BitgetOrderDetailResp> orderDetailResult = bitgetSession.getOrderDetail("BTCUSDT", "1346526727812231168");
         System.out.println(JsonUtil.toJson(orderDetailResult));
     }
 
@@ -147,6 +154,7 @@ class RangeTradingStrategyV7ServiceTests {
 
 
     public Map<String, List<BitgetMixMarketCandlesResp>> historicalKlineMonitoring() {
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         Map<String, List<BitgetMixMarketCandlesResp>> map = new HashMap<>();
         // 获取过去6个月，每段200小时的时间段
         List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
@@ -155,7 +163,7 @@ class RangeTradingStrategyV7ServiceTests {
             for (CandlesDate date : candlesDate) {
                 try {
                     // 获取K线数据
-                    ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMixMarketHistoryCandles(
+                    ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMixMarketHistoryCandles(
                             config.getSymbol(),
                             BG_PRODUCT_TYPE_USDT_FUTURES,
                             config.getGranularity().getCode(),
@@ -178,6 +186,7 @@ class RangeTradingStrategyV7ServiceTests {
 
     @Test
     public void t4() throws IOException, InterruptedException {
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         Map<String, List<BitgetMixMarketCandlesResp>> listMap = historicalKlineMonitoring();
         String[] symbols = new String[]{"BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"};
         symbols = new String[]{"BTCUSDT", "ETHUSDT"};
@@ -187,7 +196,7 @@ class RangeTradingStrategyV7ServiceTests {
         Integer limit = 500; // 获取500根K线数据
         for (String symbol : symbols) {
             List<BitgetMixMarketCandlesResp> historicalKlineCache = listMap.get(symbol);
-            ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, granularity, limit, startTime, endTime);
+            ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, granularity, limit, startTime, endTime);
             List<BitgetMixMarketCandlesResp> candles = rs.getData();
             historicalKlineCache.addAll(candles);
             historicalKlineCache = distinctAndSortByTimestamp(historicalKlineCache);

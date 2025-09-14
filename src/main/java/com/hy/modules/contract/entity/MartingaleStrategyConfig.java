@@ -1,5 +1,6 @@
 package com.hy.modules.contract.entity;
 
+import com.hy.common.enums.Direction;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -27,9 +28,9 @@ public class MartingaleStrategyConfig {
     private String symbol;
 
     /**
-     * 做多或做空 buy 买 做多 sell 卖 做空
+     * 做多或做空 LONG, SHORT
      **/
-    private String direction;
+    private Direction direction;
 
     /**
      * 数量小数位
@@ -57,9 +58,9 @@ public class MartingaleStrategyConfig {
     private Double takeProfitPercentThreshold;
 
     /**
-     * 初始开仓金额
+     * 最大投入金额
      */
-    private BigDecimal initialOpenAmount;
+    private BigDecimal maxInvestAmount;
 
     /**
      * 最大加仓次数
@@ -76,7 +77,12 @@ public class MartingaleStrategyConfig {
      **/
     private Double addPositionPriceMultiple;
 
-    public MartingaleStrategyConfig(Boolean enable, String symbol, String direction, Integer volumePlace, Integer pricePlace, Integer leverage, Double addPositionPercentThreshold, Double takeProfitPercentThreshold, BigDecimal initialOpenAmount, Integer maxOpenTimes, Double addPositionAmountMultiple, Double addPositionPriceMultiple) {
+    /**
+     * 最小下单数量
+     **/
+    private String minTradeSize;
+
+    public MartingaleStrategyConfig(Boolean enable, String symbol, Direction direction, Integer volumePlace, Integer pricePlace, Integer leverage, Double addPositionPercentThreshold, Double takeProfitPercentThreshold, BigDecimal maxInvestAmount, Integer maxOpenTimes, Double addPositionAmountMultiple, Double addPositionPriceMultiple, String minTradeSize) {
         this.enable = enable;
         this.symbol = symbol;
         this.direction = direction;
@@ -85,9 +91,10 @@ public class MartingaleStrategyConfig {
         this.leverage = leverage;
         this.addPositionPercentThreshold = addPositionPercentThreshold;
         this.takeProfitPercentThreshold = takeProfitPercentThreshold;
-        this.initialOpenAmount = initialOpenAmount;
+        this.maxInvestAmount = maxInvestAmount;
         this.maxOpenTimes = maxOpenTimes;
         this.addPositionAmountMultiple = addPositionAmountMultiple;
         this.addPositionPriceMultiple = addPositionPriceMultiple;
+        this.minTradeSize = minTradeSize;
     }
 }

@@ -24,7 +24,7 @@ public class MixOrderService {
         return ResponseUtils.handleResponse(mixOrderApi.orderDetail(paramMap).execute().body());
     }
 
-    public ResponseResult batchPlaceOrder(Map<String, String> paramMap) throws IOException {
+    public ResponseResult batchPlaceOrder(Map<String, Object> paramMap) throws IOException {
         return ResponseUtils.handleResponse(mixOrderApi.batchPlaceOrder(paramMap).execute().body());
     }
 
@@ -32,7 +32,7 @@ public class MixOrderService {
         return ResponseUtils.handleResponse(mixOrderApi.cancelOrder(paramMap).execute().body());
     }
 
-    public ResponseResult batchCancelOrders(Map<String, String> paramMap) throws IOException {
+    public ResponseResult batchCancelOrders(Map<String, Object> paramMap) throws IOException {
         return ResponseUtils.handleResponse(mixOrderApi.batchCancelOrders(paramMap).execute().body());
     }
 

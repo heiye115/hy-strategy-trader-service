@@ -1,4 +1,4 @@
-package com.hy.modules.contract.service;
+package com.hy.modules.history.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;

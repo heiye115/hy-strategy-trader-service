@@ -1,8 +1,6 @@
-package com.hy.modules.contract.service;
+package com.hy.modules.history.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.date.DatePattern;
-import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
@@ -13,7 +11,10 @@ import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.BitgetOldCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.modules.contract.entity.*;
+import com.hy.modules.contract.entity.RangePrice;
+import com.hy.modules.contract.entity.RangePriceOrder;
+import com.hy.modules.contract.entity.RangePricePlaceOrderParam;
+import com.hy.modules.contract.entity.RangePriceStrategyConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +27,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
@@ -45,7 +45,7 @@ import static com.hy.common.utils.num.BigDecimalUtils.*;
  */
 @Slf4j
 //@Service
-public class RangeTradingStrategyV6Service {
+public class RangeTradingStrategyV5Service {
 
     // ==================== 依赖注入 ====================
 
@@ -77,12 +77,6 @@ public class RangeTradingStrategyV6Service {
     private final static Map<String, BigDecimal> MARKET_PRICE_CACHE = new ConcurrentHashMap<>();
 
     /**
-     * 历史K线数据缓存 - 存储各币种的历史K线数据
-     * key: 币种名称, value: K线数据列表
-     */
-    private final static Map<String, List<BitgetMixMarketCandlesResp>> HISTORICAL_KLINE_CACHE = new ConcurrentHashMap<>();
-
-    /**
      * 订单队列 - 存储待执行的订单参数
      */
     private static final BlockingQueue<RangePricePlaceOrderParam> ORDER_QUEUE = new LinkedBlockingQueue<>(1000);
@@ -99,17 +93,12 @@ public class RangeTradingStrategyV6Service {
     /**
      * K线数据获取数量限制
      */
-    private final static Integer KLINE_DATA_LIMIT = 500;
+    private final static Integer KLINE_DATA_LIMIT = 1000;
 
     /**
-     * 历史K线数据获取数量限制
+     * 延迟开单时间（毫秒）- 1小时
      */
-    private final static Integer HISTORICAL_KLINE_DATA_LIMIT = 200;
-
-    /**
-     * 延迟开单时间（毫秒）- 2小时
-     */
-    private final static Long DELAY_OPEN_TIME_MS = 3600000L * 2;
+    private final static Long DELAY_OPEN_TIME_MS = 3600000L;
 
     /**
      * 价格波动容忍度 - 0.05%
@@ -145,10 +134,10 @@ public class RangeTradingStrategyV6Service {
     /**
      * 策略配置映射 - 存储各币种的交易策略参数
      */
-    public final static Map<String, RangePriceStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>() {
+    private final static Map<String, RangePriceStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            // BTC配置：杠杆20倍，开仓金额50USDT，价格精度4位，数量精度1位
-            put(SymbolEnum.BTCUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), 20, BigDecimal.valueOf(50.0), 4, 1, BitgetEnum.H1, 50.0));
+            // BTC配置：杠杆10倍，开仓金额50USDT，价格精度4位，数量精度1位
+            put(SymbolEnum.BTCUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), 10, BigDecimal.valueOf(50.0), 4, 1, BitgetEnum.H1, 50.0));
             // ETH配置：杠杆2倍，开仓金额50USDT，价格精度2位，数量精度2位
             put(SymbolEnum.ETHUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), 2, BigDecimal.valueOf(50.0), 2, 2, BitgetEnum.H1, 50.0));
             // XRP配置：杠杆2倍，开仓金额50USDT，价格精度0位，数量精度4位
@@ -164,7 +153,7 @@ public class RangeTradingStrategyV6Service {
     private final static Map<String, Long> DELAY_OPEN_TIME_MAP = STRATEGY_CONFIG_MAP.values().stream()
             .collect(Collectors.toMap(RangePriceStrategyConfig::getSymbol, v -> 0L));
 
-    public RangeTradingStrategyV6Service(BitgetOldCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
+    public RangeTradingStrategyV5Service(BitgetOldCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.bitgetCustomService = bitgetCustomService;
         this.mailService = mailService;
         this.taskExecutor = executor;
@@ -181,8 +170,6 @@ public class RangeTradingStrategyV6Service {
         startOrderConsumer();
         // 建立WebSocket行情数据监控
         startWebSocketMarketDataMonitoring();
-        // 加载历史K线数据
-        startHistoricalKlineMonitoring();
         log.info("区间交易策略服务启动完成, 当前配置: {}", JsonUtil.toJson(STRATEGY_CONFIG_MAP));
     }
 
@@ -267,13 +254,8 @@ public class RangeTradingStrategyV6Service {
                         log.error("startKlineMonitoring-error: 获取K线数据失败, symbol: {}, rs: {}", config.getSymbol(), JsonUtil.toJson(rs));
                         return;
                     }
-                    List<BitgetMixMarketCandlesResp> candlesData = new ArrayList<>(rs.getData());
-                    List<BitgetMixMarketCandlesResp> list = HISTORICAL_KLINE_CACHE.get(config.getSymbol());
-                    if (list != null && !list.isEmpty()) {
-                        candlesData.addAll(list);
-                        candlesData = distinctAndSortByTimestamp(candlesData);
-                        HISTORICAL_KLINE_CACHE.put(config.getSymbol(), candlesData);
-                    }
+
+                    List<BitgetMixMarketCandlesResp> candlesData = rs.getData();
                     // 计算有效区间大小
                     List<BitgetMixMarketCandlesResp> validCandles = calculateValidRangeSize(candlesData);
                     // 计算区间价格
@@ -458,12 +440,11 @@ public class RangeTradingStrategyV6Service {
                 long lowPriceTimestamp = rangePrice.getLowPriceTimestamp240() + millis;
 
                 // 如果当前时间在高价或低价的时间戳2倍的K线周期内，则不处理
-                //if (currentTime < highPriceTimestamp || currentTime < lowPriceTimestamp) continue;
+                if (currentTime < highPriceTimestamp || currentTime < lowPriceTimestamp) continue;
 
                 Long delay = DELAY_OPEN_TIME_MAP.get(rangePrice.getSymbol());
-                if (currentTime < delay || !config.getEnable() || !MARKET_PRICE_CACHE.containsKey(rangePrice.getSymbol())) {
+                if (currentTime < delay || !config.getEnable() || !MARKET_PRICE_CACHE.containsKey(rangePrice.getSymbol()))
                     continue;
-                }
 
                 RangePricePlaceOrderParam order = generateOrderSignal(rangePrice, config.getPricePlace(), MARKET_PRICE_CACHE.get(rangePrice.getSymbol()));
                 if (order == null) continue;
@@ -609,7 +590,7 @@ public class RangeTradingStrategyV6Service {
                     positionList.sort(Comparator.comparing(BitgetHistoryPositionResp::getCtime).reversed());
                     for (BitgetHistoryPositionResp hp : positionList) {
                         // 如果当前仓位的盈亏小于等于0，则继续增加杠杆
-                        if (gte(new BigDecimal(hp.getNetProfit()), BigDecimal.ZERO)) break;
+                        if (gt(new BigDecimal(hp.getPnl()), BigDecimal.ZERO)) break;
                         leverage += 1;
                     }
                 }
@@ -811,7 +792,7 @@ public class RangeTradingStrategyV6Service {
 
             List<BitgetAllPositionResp> positions = Optional.ofNullable(positionResp.getData()).orElse(Collections.emptyList());
             Map<String, BitgetAllPositionResp> positionMap = positions.stream().collect(Collectors.toMap(BitgetAllPositionResp::getSymbol, p -> p, (existing, replacement) -> existing));
-            // 如果有仓位，延迟开单时间设置为当前时间 + 2小时
+            // 如果有仓位，延迟开单时间设置为当前时间 + 1小时
             DELAY_OPEN_TIME_MAP.replaceAll((symbol, oldDelay) -> {
                 if (positionMap.containsKey(symbol)) {
                     return System.currentTimeMillis() + DELAY_OPEN_TIME_MS;
@@ -854,30 +835,47 @@ public class RangeTradingStrategyV6Service {
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> orders = entrustedOrdersMap.get(symbol);
                 if (orders == null || orders.isEmpty()) return;
 
+                RangePrice rangePrice = RANGE_PRICE_CACHE.get(symbol);
+                if (rangePrice == null) return;
                 RangePriceStrategyConfig config = STRATEGY_CONFIG_MAP.get(symbol);
                 if (config == null) return;
-
+                BigDecimal averagePrice = rangePrice.getAveragePrice();
+                BigDecimal highAveragePrice = rangePrice.getHighAveragePrice();
+                BigDecimal lowAveragePrice = rangePrice.getLowAveragePrice();
                 BigDecimal openPriceAvg = new BigDecimal(position.getOpenPriceAvg()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 BigDecimal latestPrice = MARKET_PRICE_CACHE.get(symbol);
-
-                //是否包含止盈计划
-                boolean isProfitPlan = orders.stream().anyMatch(o -> BG_PLAN_TYPE_PROFIT_PLAN.equals(o.getPlanType()));
 
                 for (BitgetOrdersPlanPendingResp.EntrustedOrder order : orders) {
                     BigDecimal triggerPrice = new BigDecimal(order.getTriggerPrice());
                     String planType = order.getPlanType();
                     String side = order.getSide();
+
+                    //止盈计划
+                    if (BG_PLAN_TYPE_PROFIT_PLAN.equals(planType)) {
+                        if (ne(averagePrice, triggerPrice)) {
+                            modifyStopLossOrder(order, averagePrice, averagePrice, order.getSize());
+                        }
+                    }
+                    //仓位止盈
+                    else if (BG_PLAN_TYPE_POS_PROFIT.equals(planType)) {
+                        if (BG_SIDE_SELL.equals(side) && ne(highAveragePrice, triggerPrice)) {
+                            modifyStopLossOrder(order, highAveragePrice, highAveragePrice, "");
+                        } else if (BG_SIDE_BUY.equals(side) && ne(lowAveragePrice, triggerPrice)) {
+                            modifyStopLossOrder(order, lowAveragePrice, lowAveragePrice, "");
+                        }
+                    }
                     //仓位止损
-                    if (BG_PLAN_TYPE_POS_LOSS.equals(planType) && !isProfitPlan && latestPrice != null) {
+                    else if (BG_PLAN_TYPE_POS_LOSS.equals(planType) && latestPrice != null) {
+
                         //做多 sell 卖
-                        if (BG_SIDE_SELL.equals(side)) {
+                        if (BG_SIDE_SELL.equals(side) && gte(latestPrice, averagePrice)) {
                             BigDecimal newTriggerPrice = openPriceAvg.multiply(new BigDecimal("1.002")).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                             if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, latestPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice, null, "");
                             }
                         }
                         //做空 buy 买
-                        else if (BG_SIDE_BUY.equals(side)) {
+                        else if (BG_SIDE_BUY.equals(side) && lte(latestPrice, averagePrice)) {
                             BigDecimal newTriggerPrice = openPriceAvg.multiply(new BigDecimal("0.998")).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                             if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, latestPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice, null, "");
@@ -995,87 +993,6 @@ public class RangeTradingStrategyV6Service {
             mailService.sendHtmlMail(emailRecipient, DateUtil.now() + " 区间价格信息", content.toString());
         } catch (Exception e) {
             log.error("sendRangePriceEmail-error:", e);
-        }
-    }
-
-    /**
-     * 生成K线时间段
-     *
-     * @param monthsAgo 从当前时间往前推多少个月作为起点（例如 6 表示 6 个月前）
-     * @param stepHours 每段的小时数（例如 200 表示 200 小时）
-     * @return 时间段列表
-     */
-    public static List<CandlesDate> getCandlesDate(int monthsAgo, int stepHours) {
-        List<CandlesDate> candlesDates = new ArrayList<>();
-        final long HOUR = 60L * 60 * 1000;
-        final long STEP = stepHours * HOUR;
-        String timeStr = " 00:00:00";
-        // 起点：N 个月前的 00:00:00，对齐到整点
-        DateTime offsetMonth = DateUtil.offsetMonth(new Date(), -monthsAgo);
-        String startDay = DatePattern.NORM_DATE_FORMAT.format(offsetMonth);
-        long start = DateUtil.parseDateTime(startDay + timeStr).toTimestamp().getTime();
-        start = (start / HOUR) * HOUR;
-        // 当前时间对齐到整点
-        long nowHour = (System.currentTimeMillis() / HOUR) * HOUR;
-        long time = start;
-        while (time < nowHour) {
-            long end = Math.min(time + STEP, nowHour);
-            candlesDates.add(new CandlesDate(time, end));
-            time = end; // 严格递增
-        }
-        return candlesDates;
-    }
-
-    /**
-     * 去重并按时间戳升序排序
-     *
-     * @param candles K线数据列表
-     * @return 去重并排序后的K线数据列表
-     */
-    public static List<BitgetMixMarketCandlesResp> distinctAndSortByTimestamp(List<BitgetMixMarketCandlesResp> candles) {
-        // 1. 先用 Map 去重（key=timestamp）
-        Map<Long, BitgetMixMarketCandlesResp> map = candles.stream()
-                .collect(Collectors.toMap(BitgetMixMarketCandlesResp::getTimestamp,
-                        Function.identity(), (oldVal, newVal) -> oldVal));
-
-        // 2. 再按 timestamp 升序排序
-        return map.values().stream().sorted(Comparator.comparing(BitgetMixMarketCandlesResp::getTimestamp)).collect(Collectors.toList());
-    }
-
-    /**
-     * 启动历史K线监控
-     * 通过REST API获取历史K线数据
-     */
-    public void startHistoricalKlineMonitoring() {
-        // 获取过去6个月，每段200小时的时间段
-        List<CandlesDate> candlesDate = getCandlesDate(6, 200);
-        for (RangePriceStrategyConfig config : STRATEGY_CONFIG_MAP.values()) {
-            taskExecutor.execute(() -> {
-                List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
-                for (CandlesDate date : candlesDate) {
-                    try {
-                        // 获取K线数据
-                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMixMarketHistoryCandles(
-                                config.getSymbol(),
-                                BG_PRODUCT_TYPE_USDT_FUTURES,
-                                config.getGranularity().getCode(),
-                                HISTORICAL_KLINE_DATA_LIMIT,
-                                date.getStartTime().toString(),
-                                date.getEndTime().toString());
-                        if (!BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode()) || rs.getData().isEmpty()) {
-                            log.error("startHistoricalKlineMonitoring-error: 获取K线数据失败, symbol: {}, rs: {}", config.getSymbol(), JsonUtil.toJson(rs));
-                            return;
-                        }
-                        candles.addAll(rs.getData());
-                    } catch (Exception e) {
-                        log.error("startHistoricalKlineMonitoring-error: symbol={}", config.getSymbol(), e);
-                    }
-                }
-                if (!candles.isEmpty()) {
-                    HISTORICAL_KLINE_CACHE.put(config.getSymbol(), distinctAndSortByTimestamp(candles));
-                    log.info("startHistoricalKlineMonitoring: symbol={}, 获取到历史K线数据数量: {}", config.getSymbol(), candles.size());
-                }
-            });
         }
     }
 }

@@ -8,9 +8,10 @@ import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.request.ws.SubscribeReq;
 import com.bitget.openapi.dto.response.ResponseResult;
+import com.hy.common.enums.BitgetAccountType;
 import com.hy.common.enums.BitgetEnum;
 import com.hy.common.enums.SymbolEnum;
-import com.hy.common.service.BitgetOldCustomService;
+import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.*;
@@ -53,7 +54,9 @@ public class RangeTradingStrategyV7Service {
     /**
      * Bitget API服务
      */
-    private final BitgetOldCustomService bitgetCustomService;
+    private final BitgetCustomService bitgetCustomService;
+
+    private final BitgetCustomService.BitgetSession bitgetSession;
 
     /**
      * 邮件通知服务
@@ -148,9 +151,9 @@ public class RangeTradingStrategyV7Service {
      */
     public final static Map<String, RangePriceStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            // BTC配置：杠杆20倍，开仓金额50USDT，价格精度4位，数量精度1位
+            // BTC配置：杠杆50倍，开仓金额50USDT，价格精度4位，数量精度1位
             put(SymbolEnum.BTCUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), 50, BigDecimal.valueOf(10.0), 4, 1, BitgetEnum.H1, 50.0, 30.0));
-            // ETH配置：杠杆2倍，开仓金额50USDT，价格精度2位，数量精度2位
+            // ETH配置：杠杆20倍，开仓金额50USDT，价格精度2位，数量精度2位
             put(SymbolEnum.ETHUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), 20, BigDecimal.valueOf(10.0), 2, 2, BitgetEnum.H1, 50.0, 30.0));
             // XRP配置：杠杆2倍，开仓金额50USDT，价格精度0位，数量精度4位
             //put(SymbolEnum.XRPUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.XRPUSDT.getCode(), 2, BigDecimal.valueOf(50.0), 0, 4, BitgetEnum.H1, 50.0));
@@ -165,10 +168,11 @@ public class RangeTradingStrategyV7Service {
     private final static Map<String, Long> DELAY_OPEN_TIME_MAP = STRATEGY_CONFIG_MAP.values().stream()
             .collect(Collectors.toMap(RangePriceStrategyConfig::getSymbol, v -> 0L));
 
-    public RangeTradingStrategyV7Service(BitgetOldCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
+    public RangeTradingStrategyV7Service(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.bitgetCustomService = bitgetCustomService;
         this.mailService = mailService;
         this.taskExecutor = executor;
+        this.bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
     }
 
     /**
@@ -215,7 +219,11 @@ public class RangeTradingStrategyV7Service {
      */
     private void setLeverageForSymbol(String symbol, Integer leverage) {
         try {
-            ResponseResult<BitgetSetLeverageResp> rs = bitgetCustomService.setLeverage(
+            // 限制最大杠杆倍数为50
+            if (leverage > 50) {
+                leverage = 50;
+            }
+            ResponseResult<BitgetSetLeverageResp> rs = bitgetSession.setLeverage(
                     symbol, BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, leverage.toString(), null
             );
             log.info("setLeverageForSymbol-设置杠杆成功: symbol={}, leverage={}, result={}", symbol, leverage, JsonUtil.toJson(rs));
@@ -229,7 +237,7 @@ public class RangeTradingStrategyV7Service {
      */
     private void setMarginModeForSymbol(RangePriceStrategyConfig config) {
         try {
-            ResponseResult<BitgetSetMarginModeResp> rs = bitgetCustomService.setMarginMode(
+            ResponseResult<BitgetSetMarginModeResp> rs = bitgetSession.setMarginMode(
                     config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, BG_MARGIN_MODE_CROSSED
             );
             log.info("setMarginModeForSymbol-设置保证金模式成功: symbol={}, result={}", config.getSymbol(), JsonUtil.toJson(rs));
@@ -243,7 +251,7 @@ public class RangeTradingStrategyV7Service {
      */
     private void setPositionMode() {
         try {
-            ResponseResult<BitgetSetPositionModeResp> rs = bitgetCustomService.setPositionMode(
+            ResponseResult<BitgetSetPositionModeResp> rs = bitgetSession.setPositionMode(
                     BG_PRODUCT_TYPE_USDT_FUTURES, BG_POS_MODE_ONE_WAY_MODE
             );
             log.info("setPositionMode-设置持仓模式成功: result={}", JsonUtil.toJson(rs));
@@ -261,7 +269,7 @@ public class RangeTradingStrategyV7Service {
             taskExecutor.execute(() -> {
                 try {
                     // 获取K线数据
-                    ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMinMarketCandles(
+                    ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(
                             config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, config.getGranularity().getCode(), KLINE_DATA_LIMIT
                     );
                     if (!BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode()) || rs.getData().isEmpty()) {
@@ -431,7 +439,7 @@ public class RangeTradingStrategyV7Service {
         for (RangePriceStrategyConfig config : STRATEGY_CONFIG_MAP.values()) {
             taskExecutor.execute(() -> {
                 try {
-                    ResponseResult<List<BitgetMixMarketTickerResp>> rs = bitgetCustomService.getMixMarketTicker(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES);
+                    ResponseResult<List<BitgetMixMarketTickerResp>> rs = bitgetSession.getMixMarketTicker(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
                     MARKET_PRICE_CACHE.put(config.getSymbol(), new BigDecimal(rs.getData().getFirst().getLastPr()));
                 } catch (Exception e) {
@@ -586,26 +594,20 @@ public class RangeTradingStrategyV7Service {
         try {
             //是否允许增加杠杆
             if (leverageIncrease) {
-                ResponseResult<List<BitgetHistoryPositionResp>> result = bitgetCustomService.getHistoryPosition(symbol, 100);
-                if (!BG_RESPONSE_CODE_SUCCESS.equals(result.getCode()) || result.getData() == null || result.getData().isEmpty()) {
-                    log.warn("calculateAndSetLeverage: 获取历史仓位失败，symbol: {}", symbol);
-                    return leverage;
-                }
-                List<BitgetHistoryPositionResp> positions = result.getData();
-                Map<String, List<BitgetHistoryPositionResp>> bhpMap = positions.stream().collect(Collectors.groupingBy(BitgetHistoryPositionResp::getSymbol));
-                if (bhpMap.containsKey(symbol)) {
-                    List<BitgetHistoryPositionResp> positionList = bhpMap.get(symbol);
-                    positionList.sort(Comparator.comparing(BitgetHistoryPositionResp::getCtime).reversed());
-                    for (BitgetHistoryPositionResp hp : positionList) {
-                        // 如果当前仓位的盈亏小于等于0，则继续增加杠杆
-                        if (gte(new BigDecimal(hp.getNetProfit()), BigDecimal.ZERO)) break;
-                        leverage += 1;
+                ResponseResult<List<BitgetHistoryPositionResp>> result = bitgetSession.getHistoryPosition(symbol, 100);
+                if (result.getData() != null && !result.getData().isEmpty()) {
+                    List<BitgetHistoryPositionResp> positions = result.getData();
+                    Map<String, List<BitgetHistoryPositionResp>> bhpMap = positions.stream().collect(Collectors.groupingBy(BitgetHistoryPositionResp::getSymbol));
+                    if (bhpMap.containsKey(symbol)) {
+                        List<BitgetHistoryPositionResp> positionList = bhpMap.get(symbol);
+                        positionList.sort(Comparator.comparing(BitgetHistoryPositionResp::getCtime).reversed());
+                        for (BitgetHistoryPositionResp hp : positionList) {
+                            // 如果当前仓位的盈亏小于等于0，则继续增加杠杆
+                            if (gte(new BigDecimal(hp.getNetProfit()), BigDecimal.ZERO)) break;
+                            leverage += 1;
+                        }
                     }
                 }
-            }
-            // 限制最大杠杆倍数为50
-            if (leverage > 50) {
-                leverage = 50;
             }
         } catch (Exception e) {
             log.error("calculateAndSetLeverage-error: symbol={}", symbol, e);
@@ -620,7 +622,7 @@ public class RangeTradingStrategyV7Service {
      * 检查是否已有仓位
      */
     private boolean hasExistingPosition(String symbol) throws Exception {
-        List<BitgetAllPositionResp> positions = Optional.ofNullable(bitgetCustomService.getAllPosition().getData()).orElse(Collections.emptyList());
+        List<BitgetAllPositionResp> positions = Optional.ofNullable(bitgetSession.getAllPosition().getData()).orElse(Collections.emptyList());
         return positions.stream().anyMatch(pos -> symbol.equals(pos.getSymbol()));
     }
 
@@ -675,7 +677,7 @@ public class RangeTradingStrategyV7Service {
      * 执行下单操作
      */
     private ResponseResult<BitgetPlaceOrderResp> executeOrder(RangePricePlaceOrderParam orderParam) throws Exception {
-        return bitgetCustomService.placeOrder(
+        return bitgetSession.placeOrder(
                 orderParam.getClientOid(),
                 orderParam.getSymbol(),
                 orderParam.getSize(),
@@ -713,7 +715,7 @@ public class RangeTradingStrategyV7Service {
     public void setBatchTakeProfitOrders(String orderId, RangePricePlaceOrderParam orderParam, RangePriceStrategyConfig config) {
         try {
             String symbol = orderParam.getSymbol();
-            ResponseResult<BitgetOrderDetailResp> orderDetailResult = bitgetCustomService.getOrderDetail(symbol, orderId);
+            ResponseResult<BitgetOrderDetailResp> orderDetailResult = bitgetSession.getOrderDetail(symbol, orderId);
             if (!BG_RESPONSE_CODE_SUCCESS.equals(orderDetailResult.getCode()) || orderDetailResult.getData() == null) {
                 log.error("setBatchTakeProfitOrders:获取订单详情失败，订单ID: {}, 错误信息: {}", orderId, JsonUtil.toJson(orderDetailResult));
                 return;
@@ -758,7 +760,7 @@ public class RangeTradingStrategyV7Service {
      */
     public Map<String, BitgetAccountsResp> getAccountInfo() {
         try {
-            ResponseResult<List<BitgetAccountsResp>> accountsResp = bitgetCustomService.getAccounts();
+            ResponseResult<List<BitgetAccountsResp>> accountsResp = bitgetSession.getAccounts();
             if (accountsResp != null && BG_RESPONSE_CODE_SUCCESS.equals(accountsResp.getCode())) {
                 List<BitgetAccountsResp> accounts = accountsResp.getData();
                 if (accounts != null && !accounts.isEmpty()) {
@@ -795,7 +797,7 @@ public class RangeTradingStrategyV7Service {
         param.setHoldSide(holdSide);
 
         try {
-            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetCustomService.placeTpslOrder(param);
+            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetSession.placeTpslOrder(param);
             if (rs == null || !BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode())) {
                 log.error("setStopLossOrder: 设置止盈止损委托计划失败, param: {}", JsonUtil.toJson(param));
                 return;
@@ -813,7 +815,7 @@ public class RangeTradingStrategyV7Service {
     public void managePositions() {
         try {
             // 获取当前持仓
-            ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetCustomService.getAllPosition();
+            ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetSession.getAllPosition();
             if (!BG_RESPONSE_CODE_SUCCESS.equals(positionResp.getCode())) {
                 log.error("managePositions-error: 获取仓位信息失败, rs: {}", JsonUtil.toJson(positionResp));
                 return;
@@ -826,7 +828,7 @@ public class RangeTradingStrategyV7Service {
             Map<String, BitgetAllPositionResp> positionMap = positions.stream().collect(Collectors.toMap(BitgetAllPositionResp::getSymbol, p -> p, (existing, replacement) -> existing));
 
             // 获取当前计划止盈止损委托
-            ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetCustomService.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
+            ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetSession.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
             if (!BG_RESPONSE_CODE_SUCCESS.equals(planResp.getCode())) {
                 log.error("managePositions-error: 获取计划委托信息失败, rs: {}", JsonUtil.toJson(planResp));
                 return;
@@ -937,7 +939,7 @@ public class RangeTradingStrategyV7Service {
             }
 
             param.setSize(size);
-            ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetCustomService.modifyTpslOrder(param);
+            ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetSession.modifyTpslOrder(param);
             log.info("modifyStopLossOrder: 修改止盈止损计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
         } catch (Exception e) {
             log.error("modifyStopLossOrder-error: 更新止盈止损计划失败, order: {}, newTriggerPrice: {}, error: {}", JsonUtil.toJson(order), newTriggerPrice, e.getMessage());
@@ -1082,7 +1084,7 @@ public class RangeTradingStrategyV7Service {
                 for (CandlesDate date : candlesDate) {
                     try {
                         // 获取K线数据
-                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMixMarketHistoryCandles(
+                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMixMarketHistoryCandles(
                                 config.getSymbol(),
                                 BG_PRODUCT_TYPE_USDT_FUTURES,
                                 config.getGranularity().getCode(),
@@ -1094,6 +1096,8 @@ public class RangeTradingStrategyV7Service {
                             return;
                         }
                         candles.addAll(rs.getData());
+                        // 避免请求过快 等待200毫秒
+                        Thread.sleep(200L);
                     } catch (Exception e) {
                         log.error("startHistoricalKlineMonitoring-error: symbol={}", config.getSymbol(), e);
                     }

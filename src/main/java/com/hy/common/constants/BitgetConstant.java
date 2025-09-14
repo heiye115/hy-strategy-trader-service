@@ -2,15 +2,6 @@ package com.hy.common.constants;
 
 public final class BitgetConstant {
 
-    /**
-     * 马丁账号名称
-     **/
-    public static final String MARTINGALE_ACCOUNT = "martingale";
-
-    /**
-     * 区间交易账号名称
-     **/
-    public static final String RANGE_TRADING_ACCOUNT = "range";
 
     /**
      * 默认币 USDT
@@ -148,6 +139,12 @@ public final class BitgetConstant {
      * mark_price 标记价格
      **/
     public static final String BG_TRIGGER_TYPE_MARK_PRICE = "mark_price";
+
+    /**
+     * 订单有效期
+     * gtc: 普通订单, 订单会一直有效，直到被成交或者取消
+     **/
+    public static final String BG_FORCE_GTC = "gtc";
 
 
 }

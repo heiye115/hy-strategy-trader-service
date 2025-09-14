@@ -1,6 +1,6 @@
-package com.hy.modules.contract.task;
+package com.hy.modules.history.task;
 
-import com.hy.modules.contract.service.RangeTradingStrategyV5Service;
+import com.hy.modules.history.service.RangeTradingStrategyV5Service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

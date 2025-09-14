@@ -12,6 +12,7 @@ import com.bitget.openapi.ws.BitgetWsHandle;
 import com.bitget.openapi.ws.SubscriptionListener;
 import com.google.common.collect.Maps;
 import com.hy.common.config.BitgetProperties;
+import com.hy.common.enums.BitgetAccountType;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -72,12 +73,12 @@ public class BitgetCustomService {
     /**
      * 根据账号名称获取一个“会话对象”
      */
-    public BitgetSession use(String accountName) {
-        BitgetRestClient client = clients.get(accountName);
+    public BitgetSession use(BitgetAccountType accountType) {
+        BitgetRestClient client = clients.get(accountType.name());
         if (client == null) {
-            throw new IllegalArgumentException("未找到账号配置: " + accountName);
+            throw new IllegalArgumentException("未找到账号配置: " + accountType.name());
         }
-        return new BitgetSession(client, accountName);
+        return new BitgetSession(client, accountType.name());
     }
 
 
@@ -145,6 +146,20 @@ public class BitgetCustomService {
             paramMap.put("marginCoin", DEFAULT_CURRENCY_USDT);
             paramMap.put("productType", BG_PRODUCT_TYPE_USDT_FUTURES);
             Object allPosition = client.bitget().v2().mixAccount().allPosition(paramMap);
+            return toBean(toJson(allPosition), ResponseResult.class, List.class, BitgetAllPositionResp.class);
+        }
+
+        /**
+         * 获取单个合约仓位信息
+         * 返回单个合约的仓位信息，包括预估强平价。
+         * <a href="https://www.bitget.com/zh-CN/api-doc/contract/position/get-single-position">获取单个合约仓位信息</a>
+         **/
+        public ResponseResult<List<BitgetAllPositionResp>> getSinglePosition(String symbol) throws IOException {
+            Map<String, String> paramMap = Maps.newHashMap();
+            paramMap.put("symbol", symbol);
+            paramMap.put("marginCoin", DEFAULT_CURRENCY_USDT);
+            paramMap.put("productType", BG_PRODUCT_TYPE_USDT_FUTURES);
+            Object allPosition = client.bitget().v2().mixAccount().singlePosition(paramMap);
             return toBean(toJson(allPosition), ResponseResult.class, List.class, BitgetAllPositionResp.class);
         }
 
@@ -611,6 +626,69 @@ public class BitgetCustomService {
             newCandlesResult.setData(candlesList);
             return newCandlesResult;
         }
+
+        /**
+         * 批量下单
+         * 普通用户:限速5次/秒，根据uid限频
+         * 跟单交易员:限速1次/秒，根据uid限频
+         * 描述
+         * 用于合约批量下单
+         * <p>
+         * 单向持仓时，必须省略tradeSide参数；
+         * 双向持仓时，开多规则为：side=buy,tradeSide=open；开空规则为：side=sell,tradeSide=open；平多规则为：side=buy,tradeSide=close；平空规则为：side=sell,tradeSide=close
+         * <a href="https://www.bitget.cloud/zh-CN/api-doc/contract/trade/Batch-Order">批量下单</a>
+         **/
+        public ResponseResult<BitgetBatchPlaceOrderResp> batchPlaceOrder(BitgetBatchPlaceOrderParam param) throws IOException {
+            Map<String, Object> paramMap = Maps.newHashMap();
+            paramMap.put("symbol", param.getSymbol());
+            paramMap.put("productType", param.getProductType());
+            paramMap.put("marginCoin", param.getMarginCoin());
+            paramMap.put("marginMode", param.getMarginMode());
+            paramMap.put("orderList", param.getOrderList());
+            ResponseResult order = client.bitget().v2().mixOrder().batchPlaceOrder(paramMap);
+            return toBean(toJson(order), ResponseResult.class, BitgetBatchPlaceOrderResp.class);
+        }
+
+
+        /**
+         * 批量撤单
+         * 普通用户10次/S 根据uid限频
+         * <p>
+         * 描述
+         * 撤单接口，可按产品类型、交易对名称进行撤单。
+         * <a href="https://www.bitget.cloud/zh-CN/api-doc/contract/trade/Batch-Cancel-Orders">批量撤单</a>
+         **/
+        public ResponseResult<BitgetBatchCancelOrdersResp> batchCancelOrders(BitgetBatchCancelOrdersParam param) throws IOException {
+            Map<String, Object> paramMap = Maps.newHashMap();
+            if (param.getSymbol() != null) {
+                paramMap.put("symbol", param.getSymbol());
+            }
+            paramMap.put("productType", param.getProductType());
+            paramMap.put("marginCoin", param.getMarginCoin());
+            if (param.getOrderIdList() != null && !param.getOrderIdList().isEmpty()) {
+                paramMap.put("orderList", param.getOrderIdList());
+            }
+            ResponseResult order = client.bitget().v2().mixOrder().batchCancelOrders(paramMap);
+            return toBean(toJson(order), ResponseResult.class, BitgetBatchCancelOrdersResp.class);
+        }
+
+
+        /**
+         * 查询当前委托
+         * 普通用户10次/S 根据uid限频
+         * <p>
+         * 描述
+         * 可查询当前的所有委托（普通单）委托信息。
+         * <a href="https://www.bitget.cloud/zh-CN/api-doc/contract/trade/Get-Orders-Pending">查询当前委托</a>
+         **/
+        public ResponseResult<BitgetOrdersPendingResp> getOrdersPending(String symbol, String productType) throws IOException {
+            Map<String, String> paramMap = Maps.newHashMap();
+            paramMap.put("symbol", symbol);
+            paramMap.put("productType", productType);
+            Object rs = client.bitget().v2().mixOrder().ordersPending(paramMap);
+            return toBean(toJson(rs), ResponseResult.class, BitgetOrdersPendingResp.class);
+        }
+
     }
 
 }
