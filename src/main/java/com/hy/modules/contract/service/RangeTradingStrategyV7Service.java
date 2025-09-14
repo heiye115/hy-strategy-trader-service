@@ -1075,38 +1075,92 @@ public class RangeTradingStrategyV7Service {
      * 启动历史K线监控
      * 通过REST API获取历史K线数据
      */
+//    public void startHistoricalKlineMonitoring() {
+//        // 获取过去6个月，每段200小时的时间段
+//        List<CandlesDate> candlesDate = getCandlesDate(6, 200);
+//        for (RangePriceStrategyConfig config : STRATEGY_CONFIG_MAP.values()) {
+//            taskExecutor.execute(() -> {
+//                List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
+//                //执行状态
+//                boolean success = true;
+//                for (CandlesDate date : candlesDate) {
+//                    try {
+//                        // 获取K线数据
+//                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMixMarketHistoryCandles(
+//                                config.getSymbol(),
+//                                BG_PRODUCT_TYPE_USDT_FUTURES,
+//                                config.getGranularity().getCode(),
+//                                HISTORICAL_KLINE_DATA_LIMIT,
+//                                date.getStartTime().toString(),
+//                                date.getEndTime().toString());
+//                        if (rs.getData() == null || rs.getData().isEmpty()) {
+//                            log.warn("startHistoricalKlineMonitoring: symbol={}, timeRange=({}, {}), 未获取到K线数据", config.getSymbol(), date.getStartTime(), date.getEndTime());
+//                            success = false;
+//                            continue;
+//                        }
+//                        candles.addAll(rs.getData());
+//                        // 避免请求过快 等待200毫秒
+//                        Thread.sleep(200L);
+//                    } catch (Exception e) {
+//                        success = false;
+//                        log.error("startHistoricalKlineMonitoring-error: symbol={}", config.getSymbol(), e);
+//                    }
+//                }
+//                if (success) {
+//                    HISTORICAL_KLINE_CACHE.put(config.getSymbol(), distinctAndSortByTimestamp(candles));
+//                    log.info("startHistoricalKlineMonitoring: symbol={}, 获取到历史K线数据数量: {}", config.getSymbol(), candles.size());
+//                }
+//            });
+//        }
+//    }
+
+
+    /**
+     * 启动历史K线监控
+     * 通过REST API获取历史K线数据，必须全部成功才加入缓存
+     */
     public void startHistoricalKlineMonitoring() {
         // 获取过去6个月，每段200小时的时间段
         List<CandlesDate> candlesDate = getCandlesDate(6, 200);
         for (RangePriceStrategyConfig config : STRATEGY_CONFIG_MAP.values()) {
             taskExecutor.execute(() -> {
-                List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
-                for (CandlesDate date : candlesDate) {
-                    try {
-                        // 获取K线数据
-                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMixMarketHistoryCandles(
-                                config.getSymbol(),
-                                BG_PRODUCT_TYPE_USDT_FUTURES,
-                                config.getGranularity().getCode(),
-                                HISTORICAL_KLINE_DATA_LIMIT,
-                                date.getStartTime().toString(),
-                                date.getEndTime().toString());
-                        if (!BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode()) || rs.getData().isEmpty()) {
-                            log.error("startHistoricalKlineMonitoring-error: 获取K线数据失败, symbol: {}, rs: {}", config.getSymbol(), JsonUtil.toJson(rs));
-                            return;
+                List<BitgetMixMarketCandlesResp> allCandles = new ArrayList<>();
+                try {
+                    for (CandlesDate date : candlesDate) {
+                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs =
+                                bitgetSession.getMixMarketHistoryCandles(
+                                        config.getSymbol(),
+                                        BG_PRODUCT_TYPE_USDT_FUTURES,
+                                        config.getGranularity().getCode(),
+                                        HISTORICAL_KLINE_DATA_LIMIT,
+                                        date.getStartTime().toString(),
+                                        date.getEndTime().toString());
+
+                        if (rs.getData() == null || rs.getData().isEmpty()) {
+                            throw new RuntimeException(String.format("未获取到K线数据: symbol=%s, timeRange=(%s, %s)", config.getSymbol(), date.getStartTime(), date.getEndTime()));
                         }
-                        candles.addAll(rs.getData());
-                        // 避免请求过快 等待200毫秒
-                        Thread.sleep(200L);
-                    } catch (Exception e) {
-                        log.error("startHistoricalKlineMonitoring-error: symbol={}", config.getSymbol(), e);
+                        allCandles.addAll(rs.getData());
+                        // 限流：避免请求过快
+                        sleepQuietly();
                     }
-                }
-                if (!candles.isEmpty()) {
-                    HISTORICAL_KLINE_CACHE.put(config.getSymbol(), distinctAndSortByTimestamp(candles));
-                    log.info("startHistoricalKlineMonitoring: symbol={}, 获取到历史K线数据数量: {}", config.getSymbol(), candles.size());
+                    // 如果全部成功才加入缓存
+                    HISTORICAL_KLINE_CACHE.put(config.getSymbol(), distinctAndSortByTimestamp(allCandles));
+                    log.info("startHistoricalKlineMonitoring: symbol={}, 历史K线数据数量={}", config.getSymbol(), allCandles.size());
+                } catch (Exception e) {
+                    log.error("startHistoricalKlineMonitoring: 获取历史K线失败, symbol={}", config.getSymbol(), e);
                 }
             });
+        }
+    }
+
+    /**
+     * 安全 sleep，不抛出中断异常
+     */
+    private void sleepQuietly() {
+        try {
+            Thread.sleep(200L);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
         }
     }
 }
