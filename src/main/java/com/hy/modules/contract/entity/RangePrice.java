@@ -69,29 +69,6 @@ public class RangePrice {
     private Long lowPriceTimestamp240;
 
 
-    public RangePrice(String symbol, Long highPriceTimestamp, BigDecimal highPrice, Long lowPriceTimestamp, BigDecimal lowPrice, BigDecimal averagePrice, BigDecimal highAveragePrice, BigDecimal lowAveragePrice) {
-        this.symbol = symbol;
-        this.highPriceTimestamp = highPriceTimestamp;
-        this.highPrice = highPrice;
-        this.lowPriceTimestamp = lowPriceTimestamp;
-        this.lowPrice = lowPrice;
-        this.averagePrice = averagePrice;
-        this.highAveragePrice = highAveragePrice;
-        this.lowAveragePrice = lowAveragePrice;
-    }
-
-    public RangePrice(String symbol, Long highPriceTimestamp, BigDecimal highPrice, Long lowPriceTimestamp, BigDecimal lowPrice, BigDecimal averagePrice, BigDecimal highAveragePrice, BigDecimal lowAveragePrice, Integer rangeCount) {
-        this.symbol = symbol;
-        this.highPriceTimestamp = highPriceTimestamp;
-        this.highPrice = highPrice;
-        this.lowPriceTimestamp = lowPriceTimestamp;
-        this.lowPrice = lowPrice;
-        this.averagePrice = averagePrice;
-        this.highAveragePrice = highAveragePrice;
-        this.lowAveragePrice = lowAveragePrice;
-        this.rangeCount = rangeCount;
-    }
-
     public RangePrice(String symbol, Long highPriceTimestamp, BigDecimal highPrice, Long lowPriceTimestamp, BigDecimal lowPrice, BigDecimal averagePrice, BigDecimal highAveragePrice, BigDecimal lowAveragePrice, Integer rangeCount, Long highPriceTimestamp240, Long lowPriceTimestamp240) {
         this.symbol = symbol;
         this.highPriceTimestamp = highPriceTimestamp;
@@ -104,5 +81,18 @@ public class RangePrice {
         this.rangeCount = rangeCount;
         this.highPriceTimestamp240 = highPriceTimestamp240;
         this.lowPriceTimestamp240 = lowPriceTimestamp240;
+    }
+
+    public RangePrice(String symbol, Long highPriceTimestamp, BigDecimal highPrice, Long lowPriceTimestamp, BigDecimal lowPrice, BigDecimal averagePrice, BigDecimal highAveragePrice, BigDecimal lowAveragePrice, Integer rangeCount) {
+        this.symbol = symbol;
+        this.highPriceTimestamp = highPriceTimestamp;
+        this.highPrice = highPrice;
+        this.lowPriceTimestamp = lowPriceTimestamp;
+        this.lowPrice = lowPrice;
+        this.averagePrice = averagePrice;
+        this.highAveragePrice = highAveragePrice;
+        this.lowAveragePrice = lowAveragePrice;
+        this.rangeCount = rangeCount;
+
     }
 }

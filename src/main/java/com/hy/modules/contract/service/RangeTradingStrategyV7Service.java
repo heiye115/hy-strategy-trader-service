@@ -386,8 +386,8 @@ public class RangeTradingStrategyV7Service {
                 .limit(10).toList();
 
         // 获取整体最高价和最低价K线
-        BitgetMixMarketCandlesResp highPriceCandle = findMaxHighCandle(candles);
-        BitgetMixMarketCandlesResp lowPriceCandle = findMinLowCandle(candles);
+        BitgetMixMarketCandlesResp highPriceCandle = findMaxHighCandle(top10HighPrices);
+        BitgetMixMarketCandlesResp lowPriceCandle = findMinLowCandle(top10LowPrices);
         if (highPriceCandle == null) return;
 
         // 计算关键价格指标
@@ -405,16 +405,6 @@ public class RangeTradingStrategyV7Service {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal lowPriceAvg = lowPriceSum.divide(BigDecimal.valueOf(top10LowPrices.size()), config.getPricePlace(), RoundingMode.HALF_UP);
 
-        Long highPriceTimestamp240 = highPriceCandle.getTimestamp();
-        Long lowPriceTimestamp240 = lowPriceCandle.getTimestamp();
-        if (candles.size() > 240) {
-            List<BitgetMixMarketCandlesResp> defaultCandles = candles.subList(candles.size() - 240, candles.size());
-            BitgetMixMarketCandlesResp defaultHigh = findMaxHighCandle(defaultCandles);
-            BitgetMixMarketCandlesResp defaultLow = findMinLowCandle(defaultCandles);
-            highPriceTimestamp240 = defaultHigh != null ? defaultHigh.getTimestamp() : highPriceTimestamp240;
-            lowPriceTimestamp240 = defaultLow != null ? defaultLow.getTimestamp() : lowPriceTimestamp240;
-        }
-
         // 更新区间价格缓存
         RANGE_PRICE_CACHE.put(config.getSymbol(), new RangePrice(
                 config.getSymbol(),
@@ -425,9 +415,7 @@ public class RangeTradingStrategyV7Service {
                 averagePrice,
                 highPriceAvg,
                 lowPriceAvg,
-                candles.size(),
-                highPriceTimestamp240,
-                lowPriceTimestamp240
+                candles.size()
         ));
     }
 

@@ -112,8 +112,8 @@ class RangeTradingStrategyV7ServiceTests {
                 .limit(10).toList();
 
         // 获取整体最高价和最低价K线
-        BitgetMixMarketCandlesResp highPriceCandle = rangeTradingStrategyV7Service.findMaxHighCandle(candles);
-        BitgetMixMarketCandlesResp lowPriceCandle = rangeTradingStrategyV7Service.findMinLowCandle(candles);
+        BitgetMixMarketCandlesResp highPriceCandle = rangeTradingStrategyV7Service.findMaxHighCandle(top10HighPrices);
+        BitgetMixMarketCandlesResp lowPriceCandle = rangeTradingStrategyV7Service.findMinLowCandle(top10LowPrices);
 
         if (highPriceCandle == null) return;
 
@@ -132,23 +132,11 @@ class RangeTradingStrategyV7ServiceTests {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal lowPriceAvg = lowPriceSum.divide(BigDecimal.valueOf(top10LowPrices.size()), 2, RoundingMode.HALF_UP);
 
-        BitgetMixMarketCandlesResp highPriceCandle240 = highPriceCandle;
-        BitgetMixMarketCandlesResp lowPriceCandle240 = lowPriceCandle;
-        if (candles.size() > 240) {
-            List<BitgetMixMarketCandlesResp> defaultCandles = candles.subList(candles.size() - 240, candles.size());
-            BitgetMixMarketCandlesResp defaultHigh = rangeTradingStrategyV7Service.findMaxHighCandle(defaultCandles);
-            BitgetMixMarketCandlesResp defaultLow = rangeTradingStrategyV7Service.findMinLowCandle(defaultCandles);
-            highPriceCandle240 = defaultHigh != null ? defaultHigh : highPriceCandle240;
-            lowPriceCandle240 = defaultLow != null ? defaultLow : lowPriceCandle240;
-        }
-
         System.out.println("币种: " + symbol + " 区间数量: " + candles.size());
         System.out.println("最高均价: " + highPriceAvg + " 最低均价: " + lowPriceAvg);
         System.out.println("最高价: " + highPrice + " 时间: " + DateUtil.formatDateTime(new Date(highPriceCandle.getTimestamp())));
         System.out.println("均价: " + averagePrice);
         System.out.println("最低价: " + lowPrice + " 时间: " + DateUtil.formatDateTime(new Date(lowPriceCandle.getTimestamp())));
-        System.out.println("240K线最高价时间: " + DateUtil.formatDateTime(new Date(highPriceCandle240.getTimestamp())) + " 240K线最高价: " + highPriceCandle240.getHighPrice());
-        System.out.println("240K线最低价时间: " + DateUtil.formatDateTime(new Date(lowPriceCandle240.getTimestamp())) + " 240K线最低价: " + lowPriceCandle240.getLowPrice());
         System.out.println("-----------------------------------");
     }
 
@@ -185,7 +173,7 @@ class RangeTradingStrategyV7ServiceTests {
     }
 
     @Test
-    public void t4() throws IOException, InterruptedException {
+    public void t4() throws IOException {
         BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         Map<String, List<BitgetMixMarketCandlesResp>> listMap = historicalKlineMonitoring();
         String[] symbols = new String[]{"BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"};
@@ -193,7 +181,7 @@ class RangeTradingStrategyV7ServiceTests {
         String startTime = null; // 开始时间
         String endTime = null;//String.valueOf(DateUtil.parseDateTime("2025-07-29 19:00:00").toTimestamp().getTime());
         String granularity = "1H"; // 1小时K线
-        Integer limit = 500; // 获取500根K线数据
+        Integer limit = 240; // 获取240根K线数据
         for (String symbol : symbols) {
             List<BitgetMixMarketCandlesResp> historicalKlineCache = listMap.get(symbol);
             ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, granularity, limit, startTime, endTime);
