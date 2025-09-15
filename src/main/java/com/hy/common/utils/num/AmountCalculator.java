@@ -79,7 +79,7 @@ public class AmountCalculator {
     }
 
     public static void main(String[] args) {
-        BigDecimal principal = new BigDecimal("115400.1");
+        BigDecimal principal = new BigDecimal("115784.6");
         BigDecimal percent = new BigDecimal("2");
 
         // 测试 applyChange

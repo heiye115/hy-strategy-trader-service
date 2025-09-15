@@ -87,10 +87,10 @@ public class MartingaleStrategyService {
     };
 
     /**
-     * 是否允许开单
+     * 是否允许开单（线程安全版）
+     * key: symbol, value: 是否允许开单（AtomicBoolean 保证原子性）
      **/
-    private final static Map<String, Boolean> allowOpenMap = STRATEGY_CONFIG_MAP.values().stream().collect(Collectors.toMap(MartingaleStrategyConfig::getSymbol, v -> false));
-
+    private static final Map<String, AtomicBoolean> allowOpenMap = new ConcurrentHashMap<>(STRATEGY_CONFIG_MAP.values().stream().collect(Collectors.toMap(MartingaleStrategyConfig::getSymbol, v -> new AtomicBoolean(false))));
 
     /**
      * 初始化马丁策略交易服务
@@ -188,13 +188,16 @@ public class MartingaleStrategyService {
         try {
             STRATEGY_CONFIG_MAP.forEach((symbol, config) -> {
                 try {
-                    if (!config.getEnable() || !allowOpenMap.get(symbol)) return;
+                    if (!config.getEnable()) return;
+                    // 原子操作：如果当前是 true，才能改成 false 并继续执行
+                    if (!allowOpenMap.get(symbol).compareAndSet(true, false)) {
+                        // 已经是 false 了，直接跳过
+                        return;
+                    }
                     //批量撤单
                     cancelAllOrdersBySymbol(symbol);
                     //执行新一轮周期马丁策略开单
                     placeInitialOrder(config);
-                    // 下单后禁止再次开单
-                    allowOpenMap.put(symbol, false);
                 } catch (IOException e) {
                     log.error("startMartingaleStrategy-error: symbol={}", symbol, e);
                 }
@@ -359,9 +362,6 @@ public class MartingaleStrategyService {
                 mailService.sendHtmlMail(emailRecipient, subject, content);
                 log.warn("handleSuccessfulOrder: 部分订单创建失败, orderParam={}, orderResult={}, param={}, result={}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult), JsonUtil.toJson(param), JsonUtil.toJson(result));
             }
-
-            //下单成功后禁止再开单
-            allowOpenMap.put(config.getSymbol(), false);
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult), e);
         }
@@ -508,7 +508,7 @@ public class MartingaleStrategyService {
             Map<String, BitgetAllPositionResp> positionMap = getAllPosition();
 
             // 更新是否允许开单的标记
-            allowOpenMap.replaceAll((symbol, oldAllow) -> !positionMap.containsKey(symbol));
+            allowOpenMap.forEach((symbol, atomicFlag) -> atomicFlag.set(!positionMap.containsKey(symbol)));
 
             // 必须有仓位才能执行后续操作
             if (positionMap.isEmpty()) return;

@@ -96,7 +96,10 @@ public class DualMovingAverageStrategyV2Service {
     /**
      * 是否允许开单 , 有仓位的情况下禁止开单
      **/
-    private final static Map<String, Boolean> allowOpenMap = configMap.values().stream().collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> false));
+    //private final static Map<String, Boolean> allowOpenMap = configMap.values().stream().collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> false));
+
+    private static final Map<String, AtomicBoolean> allowOpenMap = configMap.values().stream()
+            .collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> new AtomicBoolean(false)));
 
     public DualMovingAverageStrategyV2Service(BitgetOldCustomService bitgetCustomService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.bitgetCustomService = bitgetCustomService;
@@ -189,13 +192,15 @@ public class DualMovingAverageStrategyV2Service {
             if (dmasMap.isEmpty()) return;
             dmasMap.forEach((symbol, averagePr) -> {
                 DualMovingAverageStrategyConfig conf = configMap.get(symbol);
+                if (allowOpenMap.get(symbol).compareAndSet(true, false)) {
+                    // 已经是 false 了，直接跳过
+                    return;
+                }
                 if (btrMap.containsKey(symbol) &&
-                        allowOpenMap.getOrDefault(symbol, true) &&
                         conf.getEnable()) {
                     DualMovingAveragePlaceOrder order = preprocessPlaceOrder(conf, averagePr, btrMap.get(symbol));
                     if (order != null && orderQueue.offer(order)) {
                         log.info("signalOrderMonitoring: 队列添加订单成功, order: {}", JsonUtil.toJson(order));
-                        allowOpenMap.put(symbol, false); // 下单后禁止再次开单
                     }
                 }
             });
@@ -305,8 +310,7 @@ public class DualMovingAverageStrategyV2Service {
                         order.setOrderId(bpOrder.getOrderId());
                         order.setClientOid(bpOrder.getClientOid());
                         log.info("startOrderConsumer: 下单成功，订单信息:{}", JsonUtil.toJson(order));
-                        //下单成功后禁止再开单
-                        allowOpenMap.put(dmapo.getSymbol(), false);
+
                         //设置止损
                         setPlaceTpslOrder(dmapo.getSymbol(), dmapo.getPresetStopLossPrice(), null, null, dmapo.getSide(), BG_PLAN_TYPE_POS_LOSS);
                         // 设置分批止盈
@@ -499,7 +503,7 @@ public class DualMovingAverageStrategyV2Service {
             Map<String, List<BitgetAllPositionResp>> positionMap = positions.stream().collect(Collectors.groupingBy(BitgetAllPositionResp::getSymbol));
 
             // 更新是否允许开单的标记
-            allowOpenMap.replaceAll((symbol, oldAllow) -> !positionMap.containsKey(symbol));
+            allowOpenMap.forEach((symbol, atomicFlag) -> atomicFlag.set(!positionMap.containsKey(symbol)));
 
             //必须有仓位才能执行后续操作
             if (positions.isEmpty()) return;
