@@ -2,31 +2,37 @@
 
 ## Project Overview
 
-HY Strategy Trading Service is an automated trading system based on the Bitget exchange API, providing implementations
-for various quantitative trading strategies. The service supports real-time market data monitoring, automatic order
-placement, take-profit and stop-loss management, and other features.
+HY Strategy Trading Service is an automated trading system based on the Bitget Exchange API, providing implementations
+of various quantitative trading strategies. The service supports real-time market data monitoring, automatic order
+placement, and take-profit/stop-loss management.
 
 ## Main Features
 
 - **Trading Strategies**
-    - Dual Moving Average Strategy (V2)
-    - Range Oscillation Trading Strategy (V7)
+    - Dual Moving Average Strategy (V2): Suitable for trending markets, high risk-reward ratio, supports both long and
+      short positions
+    - Range Trading Strategy (V7): Suitable for wide-range or swing markets, balanced win rate and risk-reward ratio,
+      supports both long and short positions
+    - Short-term Strategy (V1): Suitable for short-term markets, high risk and high return, supports both long and short
+      positions
+    - Martingale Strategy: Suitable for ranging markets, stable and high win rate, supports both long and short
+      positions
 - **Account Management**
     - Leverage settings
     - Margin mode management
     - Position mode settings
 - **Order Management**
     - Real-time order placement
-    - Take-profit and stop-loss orders
+    - Take-profit/stop-loss orders
     - Order status monitoring
 - **Market Data**
-    - Real-time market subscription
+    - Real-time market data subscription
     - Historical K-line data retrieval
     - Market signal analysis
 
 ## Technical Architecture
 
-This project is developed based on the Spring Boot framework with a modular design:
+This project is developed based on the Spring Boot framework with modular design:
 
 - **Core Modules**
     - Bitget API client
@@ -60,10 +66,15 @@ git clone https://gitee.com/heiye115/hy-strategy-trader-service.git
 
 ```properties
 # application.properties
-bitget.api-Key=your_api_key
-bitget.secret-key=your_secret_key
-bitget.passphrase=your_passphrase
-bitget.base-url=https://api.bitget.com
+# Account 1: Martingale strategy dedicated API Key
+bitget.accounts[0].api-key=Your API Key
+bitget.accounts[0].secret-key=Your Secret Key
+bitget.accounts[0].passphrase=Your Passphrase
+# Account 2: Dual Moving Average strategy dedicated API Key
+bitget.accounts[1].api-key=Your API Key
+bitget.accounts[1].secret-key=Your Secret Key
+bitget.accounts[1].passphrase=Your Passphrase
+
 ```
 
 3. Build the project
@@ -146,6 +157,22 @@ Identifies price oscillation ranges for buying low and selling high:
 - Sets dynamic take-profit and stop-loss
 - Supports historical K-line data analysis
 
+### Short-term Strategy
+
+Quick trading based on short-term price fluctuations:
+
+- Quickly captures market volatility
+- High-frequency order placement
+- Suitable for intraday trading
+
+### Martingale Strategy
+
+Capital management based on the Martingale principle:
+
+- Small initial position
+- Increase position size proportionally after each loss
+- Suitable for ranging markets
+
 ## Task Scheduling
 
 Uses Spring's @Scheduled for scheduled tasks:
@@ -163,6 +190,7 @@ Uses Spring's @Scheduled for scheduled tasks:
 
 ## Security Notes
 
+- Strongly recommend using sub-accounts for API operations
 - API keys should be kept safe
 - It is recommended to use a separate trading account
 - Set appropriate risk control parameters
