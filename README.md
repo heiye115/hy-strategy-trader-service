@@ -160,6 +160,14 @@ private RangeTradingStrategyV7Service rangeTradingStrategyService;
 - 高频率下单
 - 适合日内交易
 
+### 马丁格尔策略
+
+基于马丁格尔原理进行资金管理：
+
+- 初始仓位较小
+- 每次亏损后加倍仓位
+- 适合震荡行情
+
 ## 任务调度
 
 使用Spring的@Scheduled实现定时任务：
