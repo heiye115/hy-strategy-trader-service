@@ -2,7 +2,6 @@ package com.hy.modules.contract.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
-import cn.hutool.crypto.digest.DigestAlgorithm;
 import cn.hutool.crypto.digest.Digester;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.response.ResponseResult;
@@ -148,21 +147,30 @@ public class MartingaleStrategyService {
         }
     }
 
-
     private void updateConfig(List<Object> mdConfs) {
-        Digester sha256 = new Digester(DigestAlgorithm.SHA256);
         for (Object mdConf : mdConfs) {
             MartingaleStrategyConfig newConfig = JsonUtil.toBean(String.valueOf(mdConf), MartingaleStrategyConfig.class);
-            STRATEGY_CONFIG_MAP.merge(newConfig.getSymbol(), newConfig, (oldConfig, latestConfig) -> {
-                if (isConfigChanged(oldConfig, latestConfig, sha256)) {
-                    log.info("updateConfig: 配置更新, symbol={}, oldConfig={}, newConfig={}", newConfig.getSymbol(), JsonUtil.toJson(oldConfig), JsonUtil.toJson(latestConfig));
-                    if (latestConfig.getEnable() && !oldConfig.getLeverage().equals(latestConfig.getLeverage())) {
-                        setLeverageForSymbol(latestConfig);
-                        log.info("updateConfig: 配置更新后，重新设置杠杆, symbol={}, leverage={}", latestConfig.getSymbol(), latestConfig.getLeverage());
+            STRATEGY_CONFIG_MAP.compute(newConfig.getSymbol(), (symbol, oldConfig) -> {
+                if (oldConfig == null) {
+                    // 新增
+                    if (newConfig.getEnable()) {
+                        // 初始化Bitget账户配置
+                        initializeBitgetAccount();
+                        log.info("loadConfig: 新增配置, symbol={}, config={}", symbol, JsonUtil.toJson(newConfig));
                     }
-                    return latestConfig;
+                    return newConfig;
                 }
-                return oldConfig;
+                // 更新
+                if (!Objects.equals(oldConfig, newConfig)) {
+                    log.info("loadConfig: 配置更新, symbol={}, oldConfig={}, newConfig={}", symbol, JsonUtil.toJson(oldConfig), JsonUtil.toJson(newConfig));
+                    if (newConfig.getEnable() && !Objects.equals(oldConfig.getLeverage(), newConfig.getLeverage())) {
+                        //设置杠杆倍数
+                        setLeverageForSymbol(newConfig);
+                        log.info("loadConfig: 配置更新后，重新设置杠杆, symbol={}, leverage={}", symbol, newConfig.getLeverage());
+                    }
+                    return newConfig;
+                }
+                return oldConfig; // 配置没变，保持原样
             });
             allowOpenMap.putIfAbsent(newConfig.getSymbol(), new AtomicBoolean(false));
         }
