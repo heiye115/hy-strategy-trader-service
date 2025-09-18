@@ -196,7 +196,7 @@ private RangeTradingStrategyV7Service rangeTradingStrategyService;
 
 ## 商务合作
 
-承接量化交易策略开发与定制服务，欢迎联系：heiye115@gmail.com 微信: heiye5050
+承接量化交易策略开发与定制服务，欢迎联系：heiye115@gmail.com 微信:【heiye5050】。
 
 - **备注**
     - 使用我的邀请码xq5v
