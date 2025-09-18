@@ -3,11 +3,13 @@ package com.hy.modules.contract.task;
 import com.hy.modules.contract.service.RangeTradingStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(prefix = "task.range", name = "enabled", havingValue = "true")
 public class RangeTradingStrategyTaskService {
 
     private final RangeTradingStrategyService rangeTradingStrategyService;

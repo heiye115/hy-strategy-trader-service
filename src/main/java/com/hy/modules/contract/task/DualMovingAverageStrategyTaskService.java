@@ -3,10 +3,13 @@ package com.hy.modules.contract.task;
 import com.hy.modules.contract.service.DualMovingAverageStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
 
 @Slf4j
-//@Service
+@Service
+@ConditionalOnProperty(prefix = "task.dualmovingaverage", name = "enabled", havingValue = "true")
 public class DualMovingAverageStrategyTaskService {
 
     private final DualMovingAverageStrategyService dualMovingAverageStrategyService;

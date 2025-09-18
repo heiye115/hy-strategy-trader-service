@@ -3,11 +3,13 @@ package com.hy.modules.contract.task;
 import com.hy.modules.contract.service.MartingaleStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(prefix = "task.martingale", name = "enabled", havingValue = "true")
 public class MartingaleStrategyTaskService {
 
     private final MartingaleStrategyService martingaleStrategyService;
@@ -50,5 +52,4 @@ public class MartingaleStrategyTaskService {
             log.error("managePositions-error", e);
         }
     }
-
 }
