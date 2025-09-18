@@ -11,6 +11,7 @@ import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.common.utils.num.AmountCalculator;
+import com.hy.common.utils.num.CompoundCalculator;
 import com.hy.modules.contract.entity.MartingaleOrderLevel;
 import com.hy.modules.contract.entity.MartingalePlaceOrderParam;
 import com.hy.modules.contract.entity.MartingaleStrategyConfig;
@@ -79,10 +80,10 @@ public class MartingaleStrategyService {
      */
     public final static Map<String, MartingaleStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            // BTC配置：杠杆100倍，跌0.5%加仓，止盈2%
-            put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 0.5, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001"));
+            // BTC配置：杠杆100倍，跌0.5%加仓，止盈2% 开启复利模式
+            put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 0.5, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001", true));
             // ETH配置：杠杆100倍，跌1%加仓，止盈2%
-            put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 100, 1.0, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.01"));
+            put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 100, 1.0, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.01", false));
         }
     };
 
@@ -213,7 +214,7 @@ public class MartingaleStrategyService {
     public void cancelAllOrdersBySymbol(String symbol) throws IOException {
         //查询当前委托
         ResponseResult<BitgetOrdersPendingResp> result = bitgetSession.getOrdersPending(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
-        log.info("cancelAllOrdersBySymbol: 查询当前委托结果: symbol={}, result={}", symbol, JsonUtil.toJson(result));
+        log.info("cancelAllOrdersBySymbol: 查询当前委托结果: symbol={}, 委托数={}", symbol, result.getData() != null && result.getData().getEntrustedList() != null ? result.getData().getEntrustedList().size() : 0);
         BitgetOrdersPendingResp data = result.getData();
         int entrustedSize = 0;
         int successSize = 0;
@@ -324,6 +325,12 @@ public class MartingaleStrategyService {
             BigDecimal stepMultiplier = BigDecimal.valueOf(config.getAddPositionPriceMultiple());    // 加仓价差倍数
             BigDecimal leverage = BigDecimal.valueOf(config.getLeverage());            // 杠杆倍数
             BigDecimal maxTotalMargin = config.getMaxInvestAmount(); // 最大投入保证金
+            if (config.getCompoundEnable()) {
+                CompoundCalculator.CompoundRow plan = CompoundCalculator.getCompoundPlan(orderParam.getAccountBalance());
+                if (gt(plan.getPosition(), maxTotalMargin)) {
+                    maxTotalMargin = plan.getPosition();
+                }
+            }
             int maxAddCount = config.getMaxOpenTimes();
             Direction direction = config.getDirection();
             Integer pricePlace = config.getPricePlace();
@@ -426,6 +433,7 @@ public class MartingaleStrategyService {
         BigDecimal available = new BigDecimal(accountsResp.getAvailable());
         BigDecimal crossedMaxAvailable = new BigDecimal(accountsResp.getCrossedMaxAvailable());
         BigDecimal maxInvestAmount = config.getMaxInvestAmount();
+        orderParam.setAccountBalance(available);
 
         if (lt(available, maxInvestAmount) || lt(crossedMaxAvailable, maxInvestAmount)) {
             log.warn("validateAccountBalance: USDT账户可用余额不足，无法执行下单操作! 订单: {} 可用余额: {}, 全仓最大可用来开仓余额: {}", JsonUtil.toJson(orderParam), available, crossedMaxAvailable);

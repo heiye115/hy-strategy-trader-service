@@ -28,14 +28,9 @@ public class MartingaleTests {
         public String toString() {
             return String.format("第%d单: 价格=%s, 保证金=%s, 累计幅度=%s%%",
                     index,
-                    price,
-                    margin,
-                    cumulativeStep.multiply(BigDecimal.valueOf(100)));
-//            return String.format("第%d单: 价格=%s, 保证金=%s, 累计幅度=%s%%",
-//                    index,
-//                    price.setScale(4, RoundingMode.HALF_UP),
-//                    margin.setScale(4, RoundingMode.HALF_UP),
-//                    cumulativeStep.multiply(BigDecimal.valueOf(100)).setScale(4, RoundingMode.HALF_UP));
+                    price.setScale(4, RoundingMode.HALF_UP),
+                    margin.setScale(4, RoundingMode.HALF_UP),
+                    cumulativeStep.multiply(BigDecimal.valueOf(100)).setScale(4, RoundingMode.HALF_UP));
         }
     }
 

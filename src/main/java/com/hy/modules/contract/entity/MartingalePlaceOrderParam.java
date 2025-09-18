@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.math.BigDecimal;
+
 /**
  * 区间交易下单
  **/
@@ -53,4 +55,8 @@ public class MartingalePlaceOrderParam {
      **/
     private String marginMode;
 
+    /**
+     * 账户余额
+     **/
+    private BigDecimal accountBalance;
 }
