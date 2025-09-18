@@ -28,7 +28,7 @@ public class BitgetProperties {
     private String wsPublicUrl;
 
     private String wsPrivateUrl;
-    
+
     private List<Account> accounts;
 
     @Getter
@@ -36,12 +36,24 @@ public class BitgetProperties {
     @ToString
     @NoArgsConstructor
     public static class Account {
+        
         /**
          * 账号别名
          **/
         private String name;
+        /**
+         * API Key
+         */
         private String apiKey;
+
+        /**
+         * Secret Key
+         */
         private String secretKey;
+
+        /**
+         * Passphrase
+         */
         private String passphrase;
     }
 }

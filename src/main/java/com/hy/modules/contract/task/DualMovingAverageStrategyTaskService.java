@@ -1,6 +1,6 @@
 package com.hy.modules.contract.task;
 
-import com.hy.modules.contract.service.DualMovingAverageStrategyV2Service;
+import com.hy.modules.contract.service.DualMovingAverageStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -9,9 +9,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 //@Service
 public class DualMovingAverageStrategyTaskService {
 
-    private final DualMovingAverageStrategyV2Service dualMovingAverageStrategyService;
+    private final DualMovingAverageStrategyService dualMovingAverageStrategyService;
 
-    public DualMovingAverageStrategyTaskService(DualMovingAverageStrategyV2Service dualMovingAverageStrategyService) {
+    public DualMovingAverageStrategyTaskService(DualMovingAverageStrategyService dualMovingAverageStrategyService) {
         this.dualMovingAverageStrategyService = dualMovingAverageStrategyService;
     }
 

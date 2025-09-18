@@ -11,8 +11,7 @@ import com.hy.common.service.BitgetCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.CandlesDate;
 import com.hy.modules.contract.entity.RangePriceStrategyConfig;
-import com.hy.modules.contract.service.RangeTradingStrategyV7Service;
-import com.hy.modules.history.service.RangeTradingStrategyV6Service;
+import com.hy.modules.contract.service.RangeTradingStrategyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,21 +25,21 @@ import java.util.stream.Collectors;
 import static com.hy.common.constants.BitgetConstant.*;
 import static com.hy.common.utils.num.BigDecimalUtils.gte;
 import static com.hy.common.utils.num.BigDecimalUtils.lte;
-import static com.hy.modules.history.service.RangeTradingStrategyV6Service.STRATEGY_CONFIG_MAP;
-import static com.hy.modules.history.service.RangeTradingStrategyV6Service.distinctAndSortByTimestamp;
+import static com.hy.modules.contract.service.RangeTradingStrategyService.STRATEGY_CONFIG_MAP;
+import static com.hy.modules.contract.service.RangeTradingStrategyService.distinctAndSortByTimestamp;
 
 @SpringBootTest
-class RangeTradingStrategyV7ServiceTests {
+class RangeTradingStrategyServiceTests {
 
 
     @Autowired
     BitgetCustomService bitgetCustomService;
 
     @Autowired
-    RangeTradingStrategyV7Service rangeTradingStrategyV7Service;
+    RangeTradingStrategyService rangeTradingStrategyService;
 
     public static void main(String[] args) {
-        List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
+        List<CandlesDate> candlesDate = RangeTradingStrategyService.getCandlesDate(6, 200);
         for (CandlesDate date : candlesDate) {
             System.out.println("开始时间: " + DateUtil.formatDateTime(new Date(date.getStartTime())) + " -> " + date.getStartTime() + " 结束时间: " + DateUtil.formatDateTime(new Date(date.getEndTime())) + " -> " + date.getEndTime());
         }
@@ -51,7 +50,7 @@ class RangeTradingStrategyV7ServiceTests {
     public void t0() throws IOException {
         BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
 
-        List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
+        List<CandlesDate> candlesDate = RangeTradingStrategyService.getCandlesDate(6, 200);
         List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
         for (CandlesDate date : candlesDate) {
             ResponseResult<List<BitgetMixMarketCandlesResp>> btcusdt = bitgetSession.getMixMarketHistoryCandles("BTCUSDT", "USDT-FUTURES", "1H", 200, date.getStartTime().toString(), date.getEndTime().toString());
@@ -65,7 +64,7 @@ class RangeTradingStrategyV7ServiceTests {
 
     @Test
     public void t1() throws IOException, InterruptedException {
-        rangeTradingStrategyV7Service.startHistoricalKlineMonitoring();
+        rangeTradingStrategyService.startHistoricalKlineMonitoring();
     }
 
     @Test
@@ -112,8 +111,8 @@ class RangeTradingStrategyV7ServiceTests {
                 .limit(10).toList();
 
         // 获取整体最高价和最低价K线
-        BitgetMixMarketCandlesResp highPriceCandle = rangeTradingStrategyV7Service.findMaxHighCandle(top10HighPrices);
-        BitgetMixMarketCandlesResp lowPriceCandle = rangeTradingStrategyV7Service.findMinLowCandle(top10LowPrices);
+        BitgetMixMarketCandlesResp highPriceCandle = rangeTradingStrategyService.findMaxHighCandle(top10HighPrices);
+        BitgetMixMarketCandlesResp lowPriceCandle = rangeTradingStrategyService.findMinLowCandle(top10LowPrices);
 
         if (highPriceCandle == null) return;
 
@@ -145,7 +144,7 @@ class RangeTradingStrategyV7ServiceTests {
         BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         Map<String, List<BitgetMixMarketCandlesResp>> map = new HashMap<>();
         // 获取过去6个月，每段200小时的时间段
-        List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
+        List<CandlesDate> candlesDate = RangeTradingStrategyService.getCandlesDate(6, 200);
         for (RangePriceStrategyConfig config : STRATEGY_CONFIG_MAP.values()) {
             List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
             for (CandlesDate date : candlesDate) {
@@ -188,7 +187,7 @@ class RangeTradingStrategyV7ServiceTests {
             List<BitgetMixMarketCandlesResp> candles = rs.getData();
             historicalKlineCache.addAll(candles);
             historicalKlineCache = distinctAndSortByTimestamp(historicalKlineCache);
-            candles = rangeTradingStrategyV7Service.calculateValidRangeSize(historicalKlineCache);
+            candles = rangeTradingStrategyService.calculateValidRangeSize(historicalKlineCache);
             calculateRangePrice(candles, symbol);
         }
 

@@ -1,17 +1,18 @@
-package com.hy.modules.history.task;
+package com.hy.modules.contract.task;
 
-import com.hy.modules.history.service.RangeTradingStrategyV6Service;
+import com.hy.modules.contract.service.RangeTradingStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
 
 @Slf4j
-//@Service
-public class RangeTradingStrategyTaskV6Service {
+@Service
+public class RangeTradingStrategyTaskService {
 
-    private final RangeTradingStrategyV6Service rangeTradingStrategyService;
+    private final RangeTradingStrategyService rangeTradingStrategyService;
 
-    public RangeTradingStrategyTaskV6Service(RangeTradingStrategyV6Service rangeTradingStrategyService) {
+    public RangeTradingStrategyTaskService(RangeTradingStrategyService rangeTradingStrategyService) {
         this.rangeTradingStrategyService = rangeTradingStrategyService;
     }
 

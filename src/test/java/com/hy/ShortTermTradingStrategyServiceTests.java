@@ -6,11 +6,11 @@ import com.bitget.custom.entity.BitgetMixMarketCandlesResp;
 import com.bitget.custom.entity.BitgetOrderDetailResp;
 import com.bitget.custom.entity.BitgetOrdersPlanPendingResp;
 import com.bitget.openapi.dto.response.ResponseResult;
-import com.hy.common.service.BitgetOldCustomService;
+import com.hy.common.enums.BitgetAccountType;
+import com.hy.common.service.BitgetCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.CandlesDate;
-import com.hy.modules.contract.service.RangeTradingStrategyV7Service;
-import com.hy.modules.history.service.RangeTradingStrategyV6Service;
+import com.hy.modules.contract.service.RangeTradingStrategyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,17 +26,17 @@ import static com.hy.common.utils.num.BigDecimalUtils.gt;
 import static com.hy.common.utils.num.BigDecimalUtils.lt;
 
 @SpringBootTest
-class ShortTermTradingStrategyV1ServiceTests {
+class ShortTermTradingStrategyServiceTests {
 
 
     @Autowired
-    BitgetOldCustomService bitgetCustomService;
+    BitgetCustomService bitgetCustomService;
 
     @Autowired
-    RangeTradingStrategyV7Service rangeTradingStrategyV7Service;
+    RangeTradingStrategyService rangeTradingStrategyService;
 
     public static void main(String[] args) {
-        List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
+        List<CandlesDate> candlesDate = RangeTradingStrategyService.getCandlesDate(6, 200);
         for (CandlesDate date : candlesDate) {
             System.out.println("开始时间: " + DateUtil.formatDateTime(new Date(date.getStartTime())) + " -> " + date.getStartTime() + " 结束时间: " + DateUtil.formatDateTime(new Date(date.getEndTime())) + " -> " + date.getEndTime());
         }
@@ -45,10 +45,11 @@ class ShortTermTradingStrategyV1ServiceTests {
 
     @Test
     public void t0() throws IOException {
-        List<CandlesDate> candlesDate = RangeTradingStrategyV6Service.getCandlesDate(6, 200);
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+        List<CandlesDate> candlesDate = RangeTradingStrategyService.getCandlesDate(6, 200);
         List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
         for (CandlesDate date : candlesDate) {
-            ResponseResult<List<BitgetMixMarketCandlesResp>> btcusdt = bitgetCustomService.getMixMarketHistoryCandles("BTCUSDT", "USDT-FUTURES", "1H", 200, date.getStartTime().toString(), date.getEndTime().toString());
+            ResponseResult<List<BitgetMixMarketCandlesResp>> btcusdt = bitgetSession.getMixMarketHistoryCandles("BTCUSDT", "USDT-FUTURES", "1H", 200, date.getStartTime().toString(), date.getEndTime().toString());
             //System.out.println("BTCUSDT K线数据: " + JsonUtil.toJson(btcusdt));
             candles.addAll(btcusdt.getData());
         }
@@ -59,13 +60,14 @@ class ShortTermTradingStrategyV1ServiceTests {
 
     @Test
     public void t1() throws IOException, InterruptedException {
-        rangeTradingStrategyV7Service.startHistoricalKlineMonitoring();
+        rangeTradingStrategyService.startHistoricalKlineMonitoring();
     }
 
     @Test
     public void getAllPosition() throws IOException {
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         // 获取当前持仓
-        ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetCustomService.getAllPosition();
+        ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetSession.getAllPosition();
         if (!BG_RESPONSE_CODE_SUCCESS.equals(positionResp.getCode())) {
             return;
         }
@@ -76,13 +78,15 @@ class ShortTermTradingStrategyV1ServiceTests {
 
     @Test
     public void getOrdersPlanPending() throws IOException {
-        ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetCustomService.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+        ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetSession.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
         System.out.println(JsonUtil.toJson(planResp));
     }
 
     @Test
     public void t3() throws IOException {
-        ResponseResult<BitgetOrderDetailResp> orderDetailResult = bitgetCustomService.getOrderDetail("BTCUSDT", "1346526727812231168");
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
+        ResponseResult<BitgetOrderDetailResp> orderDetailResult = bitgetSession.getOrderDetail("BTCUSDT", "1346526727812231168");
         System.out.println(JsonUtil.toJson(orderDetailResult));
     }
 
@@ -107,8 +111,8 @@ class ShortTermTradingStrategyV1ServiceTests {
         //top10LowPrices = top10LowPrices.stream().sorted(Comparator.comparing(BitgetMixMarketCandlesResp::getTimestamp)).toList();
         //top10LowPrices.forEach(c -> System.out.println("下跌K线时间: " + DateUtil.formatDateTime(new Date(c.getTimestamp())) + " 高价: " + c.getHighPrice() + " 开盘价: " + c.getOpenPrice() + " 收盘价: " + c.getClosePrice()));
 
-        BitgetMixMarketCandlesResp highPriceCandle = rangeTradingStrategyV7Service.findMaxHighCandle(candles);
-        BitgetMixMarketCandlesResp lowPriceCandle = rangeTradingStrategyV7Service.findMinLowCandle(candles);
+        BitgetMixMarketCandlesResp highPriceCandle = rangeTradingStrategyService.findMaxHighCandle(candles);
+        BitgetMixMarketCandlesResp lowPriceCandle = rangeTradingStrategyService.findMinLowCandle(candles);
 
         // 计算前10高价的均价
         BigDecimal highPriceSum = top10HighPrices.stream().map(BitgetMixMarketCandlesResp::getLowPrice)
@@ -129,6 +133,7 @@ class ShortTermTradingStrategyV1ServiceTests {
 
     @Test
     public void t4() throws IOException, InterruptedException {
+        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         String[] symbols = new String[]{"BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"};
         symbols = new String[]{"BTCUSDT", "ETHUSDT"};
         String startTime = null; // 开始时间
@@ -136,7 +141,7 @@ class ShortTermTradingStrategyV1ServiceTests {
         String granularity = "5m"; // 5分钟K线
         Integer limit = 300; // 获取300根K线数据
         for (String symbol : symbols) {
-            ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, granularity, limit, startTime, endTime);
+            ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, granularity, limit, startTime, endTime);
             List<BitgetMixMarketCandlesResp> candles = rs.getData();
             calculateRangePrice(candles, symbol);
         }

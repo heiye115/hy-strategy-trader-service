@@ -1,12 +1,16 @@
-package com.hy.modules.history.service;
+package com.hy.modules.contract.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.request.ws.SubscribeReq;
 import com.bitget.openapi.dto.response.ResponseResult;
+import com.hy.common.enums.BitgetAccountType;
 import com.hy.common.enums.BitgetEnum;
-import com.hy.common.service.BitgetOldCustomService;
+import com.hy.common.enums.SymbolEnum;
+import com.hy.common.service.BitgetCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.DualMovingAverageOrder;
 import com.hy.modules.contract.entity.DualMovingAveragePlaceOrder;
@@ -38,16 +42,17 @@ import static com.hy.common.constants.BitgetConstant.*;
 /****
  * 双均线策略服务类
  * 该类负责处理双均线策略的相关逻辑，包括计算指标、持仓信息管理等。
- * 使用了互斥锁和读写锁来保证多线程环境下的安全性。
  */
 @Slf4j
 //@Service
-public class DualMovingAverageStrategyV1Service {
+public class DualMovingAverageStrategyService {
 
     /**
      * Bitget自定义服务类
      **/
-    private final BitgetOldCustomService bitgetCustomService;
+    private final BitgetCustomService bitgetCustomService;
+
+    private final BitgetCustomService.BitgetSession bitgetSession;
 
     /**
      * 线程池
@@ -55,9 +60,9 @@ public class DualMovingAverageStrategyV1Service {
     private final TaskExecutor taskExecutor;
 
     /**
-     * 双均线交易信号集合
+     * 双均线平均价格
      **/
-    private final static Map<String, DualMovingAverageSignal> dmasMap = new ConcurrentHashMap<>();
+    private final static Map<String, BigDecimal> dmasMap = new ConcurrentHashMap<>();
 
     /**
      * Bitget行情数据缓存
@@ -85,20 +90,24 @@ public class DualMovingAverageStrategyV1Service {
      **/
     private final static Map<String, DualMovingAverageStrategyConfig> configMap = new ConcurrentHashMap<>() {
         {
-            put("BTCUSDT", new DualMovingAverageStrategyConfig(true, "BTCUSDT", 0.5, 5, new BigDecimal(50), 4, 1, BitgetEnum.H4.getCode(), 2.0, 30.0, 5.0, 30.0));
-            put("ETHUSDT", new DualMovingAverageStrategyConfig(true, "ETHUSDT", 1.0, 2, new BigDecimal(50), 2, 2, BitgetEnum.H4.getCode(), 3.0, 30.0, 10.0, 30.0));
-            put("SOLUSDT", new DualMovingAverageStrategyConfig(true, "SOLUSDT", 1.0, 2, new BigDecimal(50), 1, 3, BitgetEnum.H4.getCode(), 5.0, 30.0, 15.0, 30.0));
+            put(SymbolEnum.BTCUSDT.getCode(), new DualMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), 0.3, 5, BigDecimal.valueOf(50.0), 4, 1, BitgetEnum.M5.getCode(), 2.0, 30.0, 4.0, 30.0));
+            put(SymbolEnum.ETHUSDT.getCode(), new DualMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), 1.0, 2, BigDecimal.valueOf(50.0), 2, 2, BitgetEnum.H4.getCode(), 5.0, 30.0, 15.0, 30.0));
+            put(SymbolEnum.SOLUSDT.getCode(), new DualMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), 2.0, 2, BigDecimal.valueOf(50.0), 1, 3, BitgetEnum.H4.getCode(), 10.0, 30.0, 20.0, 30.0));
         }
     };
 
     /**
-     * 是否允许开单
+     * 是否允许开单 , 有仓位的情况下禁止开单
      **/
-    private final static Map<String, Boolean> allowOpenMap = configMap.values().stream().collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> false));
+    //private final static Map<String, Boolean> allowOpenMap = configMap.values().stream().collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> false));
 
-    public DualMovingAverageStrategyV1Service(BitgetOldCustomService bitgetCustomService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
+    private static final Map<String, AtomicBoolean> allowOpenMap = configMap.values().stream()
+            .collect(Collectors.toMap(DualMovingAverageStrategyConfig::getSymbol, v -> new AtomicBoolean(false)));
+
+    public DualMovingAverageStrategyService(BitgetCustomService bitgetCustomService, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.bitgetCustomService = bitgetCustomService;
         this.taskExecutor = executor;
+        this.bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
     }
 
     public void start() {
@@ -118,23 +127,24 @@ public class DualMovingAverageStrategyV1Service {
     public void setBitgetAccount() {
         try {
             for (DualMovingAverageStrategyConfig config : configMap.values()) {
+                if (!config.getEnable()) continue;
                 try {
                     // 设置杠杆
-                    ResponseResult<BitgetSetLeverageResp> rs = bitgetCustomService.setLeverage(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, config.getLeverage().toString(), null);
+                    ResponseResult<BitgetSetLeverageResp> rs = bitgetSession.setLeverage(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, config.getLeverage().toString(), null);
                     log.info("setBitgetAccount-设置杠杆:{}", JsonUtil.toJson(rs));
                 } catch (Exception e) {
                     log.error("setBitgetAccount-setLeverage报错:{}", config.getSymbol(), e);
                 }
                 try {
                     // 设置保证金模式
-                    ResponseResult<BitgetSetMarginModeResp> rs = bitgetCustomService.setMarginMode(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, BG_MARGIN_MODE_CROSSED);
+                    ResponseResult<BitgetSetMarginModeResp> rs = bitgetSession.setMarginMode(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, BG_MARGIN_MODE_CROSSED);
                     log.info("setBitgetAccount-设置保证金模式:{}", JsonUtil.toJson(rs));
                 } catch (Exception e) {
                     log.error("setBitgetAccount-setMarginMode报错:{}", config.getSymbol(), e);
                 }
             }
             // 设置持仓模式
-            ResponseResult<BitgetSetPositionModeResp> rs = bitgetCustomService.setPositionMode(BG_PRODUCT_TYPE_USDT_FUTURES, BG_POS_MODE_ONE_WAY_MODE);
+            ResponseResult<BitgetSetPositionModeResp> rs = bitgetSession.setPositionMode(BG_PRODUCT_TYPE_USDT_FUTURES, BG_POS_MODE_ONE_WAY_MODE);
             log.info("setBitgetAccount-设置持仓模式:{}", JsonUtil.toJson(rs));
         } catch (Exception e) {
             log.error("setBitgetAccount-error:", e);
@@ -148,15 +158,12 @@ public class DualMovingAverageStrategyV1Service {
         for (DualMovingAverageStrategyConfig config : configMap.values()) {
             taskExecutor.execute(() -> {
                 try {
-                    ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetCustomService.getMinMarketCandles(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, config.getTimeFrame(), LIMIT);
+                    ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, config.getTimeFrame(), LIMIT);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
                     BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(config.getTimeFrame())).getDuration());
                     List<Num> numList = calculateIndicators(barSeries);
-                    DualMovingAverageSignal dmas = new DualMovingAverageSignal();
-                    dmas.setSymbol(config.getSymbol());
-                    dmas.setLowPrice(numList.get(0).bigDecimalValue().setScale(config.getPricePlace(), RoundingMode.HALF_UP));
-                    dmas.setHighPrice(numList.get(1).bigDecimalValue().setScale(config.getPricePlace(), RoundingMode.HALF_UP));
-                    dmasMap.put(dmas.getSymbol(), dmas);
+                    BigDecimal average = (numList.get(0).bigDecimalValue().add(numList.get(1).bigDecimalValue())).divide(BigDecimal.TWO, config.getPricePlace(), RoundingMode.HALF_UP);
+                    dmasMap.put(config.getSymbol(), average);
                 } catch (Exception e) {
                     log.error("dualMovingAverageSignalMonitoring-error:{}", config.getSymbol(), e);
                 }
@@ -171,7 +178,7 @@ public class DualMovingAverageStrategyV1Service {
         for (DualMovingAverageStrategyConfig config : configMap.values()) {
             taskExecutor.execute(() -> {
                 try {
-                    ResponseResult<List<BitgetMixMarketTickerResp>> rs = bitgetCustomService.getMixMarketTicker(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES);
+                    ResponseResult<List<BitgetMixMarketTickerResp>> rs = bitgetSession.getMixMarketTicker(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
                     btrMap.put(config.getSymbol(), new BigDecimal(rs.getData().getFirst().getLastPr()));
                 } catch (Exception e) {
@@ -187,13 +194,17 @@ public class DualMovingAverageStrategyV1Service {
     public void signalOrderMonitoring() {
         try {
             if (dmasMap.isEmpty()) return;
-            dmasMap.forEach((symbol, signal) -> {
-                if (btrMap.containsKey(symbol) && allowOpenMap.getOrDefault(symbol, true)) {
-                    BigDecimal lastPr = btrMap.get(symbol);
-                    DualMovingAveragePlaceOrder order = preprocessPlaceOrder(signal, lastPr);
+            dmasMap.forEach((symbol, averagePr) -> {
+                DualMovingAverageStrategyConfig conf = configMap.get(symbol);
+                if (allowOpenMap.get(symbol).compareAndSet(true, false)) {
+                    // 已经是 false 了，直接跳过
+                    return;
+                }
+                if (btrMap.containsKey(symbol) &&
+                        conf.getEnable()) {
+                    DualMovingAveragePlaceOrder order = preprocessPlaceOrder(conf, averagePr, btrMap.get(symbol));
                     if (order != null && orderQueue.offer(order)) {
                         log.info("signalOrderMonitoring: 队列添加订单成功, order: {}", JsonUtil.toJson(order));
-                        allowOpenMap.put(symbol, false); // 下单后禁止再次开单
                     }
                 }
             });
@@ -205,32 +216,30 @@ public class DualMovingAverageStrategyV1Service {
     /**
      * 预处理双均线下单信息
      */
-    public DualMovingAveragePlaceOrder preprocessPlaceOrder(DualMovingAverageSignal dmaSignal, BigDecimal latestPrice) {
-        DualMovingAverageStrategyConfig conf = configMap.get(dmaSignal.getSymbol());
-        DualMovingAverageSignal dmas = detectMovingAverageCluster(dmaSignal.getLowPrice(), dmaSignal.getHighPrice(), latestPrice, conf.getMinPercentThreshold());
+    public DualMovingAveragePlaceOrder preprocessPlaceOrder(DualMovingAverageStrategyConfig conf, BigDecimal averagePr, BigDecimal latestPrice) {
+        DualMovingAverageSignal dmas = detectMovingAverageCluster(averagePr, latestPrice, conf.getMinPercentThreshold());
         BigDecimal upHighPrice = dmas.getHighPrice().multiply(new BigDecimal("1.0005")).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
         BigDecimal downHighPrice = dmas.getHighPrice().multiply(new BigDecimal("0.9995")).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
         BigDecimal upLowPrice = dmas.getLowPrice().multiply(new BigDecimal("1.0005")).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
         BigDecimal downLowPrice = dmas.getLowPrice().multiply(new BigDecimal("0.9995")).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
         DualMovingAveragePlaceOrder order = new DualMovingAveragePlaceOrder();
         order.setClientOid(IdUtil.getSnowflakeNextIdStr());
-        order.setSymbol(dmaSignal.getSymbol());
+        order.setSymbol(conf.getSymbol());
         order.setPrice(latestPrice);
         order.setOrderType(BG_ORDER_TYPE_MARKET);
         order.setMarginMode(BG_MARGIN_MODE_CROSSED);
-        //order.setTradeSide(null);//BG_TRADE_SIDE_OPEN
         // 判断 latestPrice 是否在 [downHighPrice, upHighPrice] 范围内
         if (latestPrice.compareTo(downHighPrice) >= 0 && latestPrice.compareTo(upHighPrice) <= 0) {
             //if (true) {
             order.setSide(BG_SIDE_BUY);
-            order.setPresetStopLossPrice(downLowPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
+            order.setPresetStopLossPrice(dmas.getLowPrice().setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
             return order;
         }
         // 判断 latestPrice 是否在 [downLowPrice, upLowPrice] 范围内
         if (latestPrice.compareTo(downLowPrice) >= 0 && latestPrice.compareTo(upLowPrice) <= 0) {
             //if (true) {
             order.setSide(BG_SIDE_SELL);
-            order.setPresetStopLossPrice(upHighPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
+            order.setPresetStopLossPrice(dmas.getHighPrice().setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
             return order;
         }
         return null;
@@ -247,7 +256,7 @@ public class DualMovingAverageStrategyV1Service {
                         DualMovingAveragePlaceOrder dmapo = orderQueue.take(); // 阻塞直到有数据
 
                         // 校验当前是否已有仓位
-                        List<BitgetAllPositionResp> positions = Optional.ofNullable(bitgetCustomService.getAllPosition().getData()).orElse(Collections.emptyList());
+                        List<BitgetAllPositionResp> positions = Optional.ofNullable(bitgetSession.getAllPosition().getData()).orElse(Collections.emptyList());
                         boolean hasPosition = positions.stream().anyMatch(pos -> dmapo.getSymbol().equals(pos.getSymbol()));
                         //当前已有仓位存在，无法执行下单操作!
                         if (hasPosition) continue;
@@ -286,7 +295,7 @@ public class DualMovingAverageStrategyV1Service {
 
                         //ResponseResult<BitgetPlaceOrderResp> bpor = null;
                         // 下单请求
-                        ResponseResult<BitgetPlaceOrderResp> bpor = bitgetCustomService.placeOrder(
+                        ResponseResult<BitgetPlaceOrderResp> bpor = bitgetSession.placeOrder(
                                 dmapo.getClientOid(),
                                 dmapo.getSymbol(),
                                 dmapo.getSize(),
@@ -305,8 +314,7 @@ public class DualMovingAverageStrategyV1Service {
                         order.setOrderId(bpOrder.getOrderId());
                         order.setClientOid(bpOrder.getClientOid());
                         log.info("startOrderConsumer: 下单成功，订单信息:{}", JsonUtil.toJson(order));
-                        //下单成功后禁止再开单
-                        allowOpenMap.put(dmapo.getSymbol(), false);
+
                         //设置止损
                         setPlaceTpslOrder(dmapo.getSymbol(), dmapo.getPresetStopLossPrice(), null, null, dmapo.getSide(), BG_PLAN_TYPE_POS_LOSS);
                         // 设置分批止盈
@@ -328,7 +336,7 @@ public class DualMovingAverageStrategyV1Service {
      **/
     public void setBatchTakeProfit(String orderId, DualMovingAveragePlaceOrder dmapo, DualMovingAverageStrategyConfig conf) {
         try {
-            ResponseResult<BitgetOrderDetailResp> odrs = bitgetCustomService.getOrderDetail(dmapo.getSymbol(), orderId);
+            ResponseResult<BitgetOrderDetailResp> odrs = bitgetSession.getOrderDetail(dmapo.getSymbol(), orderId);
             if (!BG_RESPONSE_CODE_SUCCESS.equals(odrs.getCode()) || odrs.getData() == null) {
                 log.error("startOrderConsumer:获取订单详情失败，订单ID: {}, 错误信息: {}", orderId, JsonUtil.toJson(odrs));
                 return;
@@ -400,11 +408,7 @@ public class DualMovingAverageStrategyV1Service {
      */
     public static List<Num> calculateIndicators(BarSeries series) {
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
-//        Indicator<Num> ma21 = new SMAIndicator(closePrice, 21);
-//        Indicator<Num> ma55 = new SMAIndicator(closePrice, 55);
         Indicator<Num> ma144 = new SMAIndicator(closePrice, 144);
-//        Indicator<Num> ema21 = new EMAIndicator(closePrice, 21);
-//        Indicator<Num> ema55 = new EMAIndicator(closePrice, 55);
         Indicator<Num> ema144 = new EMAIndicator(closePrice, 144);
         int endIndex = series.getEndIndex();
         List<Num> numList = new ArrayList<>();
@@ -417,34 +421,24 @@ public class DualMovingAverageStrategyV1Service {
     /**
      * 判断均线是否聚合，如果聚合且最新价格突破上下边界，则扩展价格通道。
      *
-     * @param minPrice            所有均线中的最小值
-     * @param maxPrice            所有均线中的最大值
+     * @param averagePr           均线均价
      * @param latestPrice         最新收盘价
      * @param minPercentThreshold 聚合判定的最小百分比阈值（例如：1.0 表示 1%）
      * @return DualMovingAverageSignal 包含高低价格区间
      */
-    public DualMovingAverageSignal detectMovingAverageCluster(BigDecimal minPrice, BigDecimal maxPrice, BigDecimal latestPrice, double minPercentThreshold) {
-        BigDecimal diff = maxPrice.subtract(minPrice);
-        BigDecimal percent = diff.divide(minPrice, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+    public DualMovingAverageSignal detectMovingAverageCluster(BigDecimal averagePr, BigDecimal latestPrice, double minPercentThreshold) {
         BigDecimal threshold = BigDecimal.valueOf(minPercentThreshold);
-
         DualMovingAverageSignal signal = new DualMovingAverageSignal();
-        signal.setHighPrice(maxPrice);
-        signal.setLowPrice(minPrice);
+        signal.setHighPrice(averagePr);
+        signal.setLowPrice(averagePr);
 
-        if (percent.compareTo(threshold) <= 0) {
-            BigDecimal percentFactor = threshold.divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP);
-            if (latestPrice.compareTo(maxPrice) > 0) {
-                BigDecimal newLow = maxPrice.multiply(BigDecimal.ONE.subtract(percentFactor));
-                signal.setLowPrice(newLow);
-            } else if (latestPrice.compareTo(minPrice) < 0) {
-                BigDecimal newHigh = minPrice.multiply(BigDecimal.ONE.add(percentFactor));
-                signal.setHighPrice(newHigh);
-            } else {
-                BigDecimal averagePrice = maxPrice.add(minPrice).divide(BigDecimal.valueOf(2), latestPrice.scale(), RoundingMode.HALF_UP);
-                signal.setHighPrice(averagePrice.multiply(BigDecimal.ONE.add(percentFactor)));
-                signal.setLowPrice(averagePrice.multiply(BigDecimal.ONE.subtract(percentFactor)));
-            }
+        BigDecimal percentFactor = threshold.divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP);
+        if (latestPrice.compareTo(averagePr) > 0) {
+            BigDecimal newLow = averagePr.multiply(BigDecimal.ONE.subtract(percentFactor));
+            signal.setLowPrice(newLow);
+        } else {
+            BigDecimal newHigh = averagePr.multiply(BigDecimal.ONE.add(percentFactor));
+            signal.setHighPrice(newHigh);
         }
         return signal;
     }
@@ -455,7 +449,7 @@ public class DualMovingAverageStrategyV1Service {
      **/
     public Map<String, BitgetAccountsResp> getAccountInfo() {
         try {
-            ResponseResult<List<BitgetAccountsResp>> accountsResp = bitgetCustomService.getAccounts();
+            ResponseResult<List<BitgetAccountsResp>> accountsResp = bitgetSession.getAccounts();
             if (accountsResp != null && BG_RESPONSE_CODE_SUCCESS.equals(accountsResp.getCode())) {
                 List<BitgetAccountsResp> accounts = accountsResp.getData();
                 if (accounts != null && !accounts.isEmpty()) {
@@ -478,7 +472,6 @@ public class DualMovingAverageStrategyV1Service {
         param.setProductType(BG_PRODUCT_TYPE_USDT_FUTURES);
         param.setSymbol(symbol);
         /*止盈止损类型 profit_plan：止盈计划  pos_loss：仓位止损*/
-        //param.setPlanType(BG_PLAN_TYPE_PROFIT_PLAN);
         param.setPlanType(planType);
         /*触发类型 市场价格*/
         param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
@@ -487,10 +480,12 @@ public class DualMovingAverageStrategyV1Service {
         param.setSize(size);
         param.setHoldSide(holdSide);
         try {
-            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetCustomService.placeTpslOrder(param);
-            if (rs != null && BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode())) {
-                log.info("setPlaceTpslOrder: 设置止盈止损委托计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(rs));
+            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetSession.placeTpslOrder(param);
+            if (rs == null || !BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode())) {
+                log.error("setPlaceTpslOrder: 设置止盈止损委托计划失败, param: {}", JsonUtil.toJson(param));
+                return;
             }
+            log.info("setPlaceTpslOrder: 设置止盈止损委托计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(rs));
         } catch (Exception e) {
             log.error("setPlaceTpslOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", JsonUtil.toJson(param), e.getMessage());
         }
@@ -502,7 +497,7 @@ public class DualMovingAverageStrategyV1Service {
     public void positionManagement() {
         try {
             // 获取当前持仓
-            ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetCustomService.getAllPosition();
+            ResponseResult<List<BitgetAllPositionResp>> positionResp = bitgetSession.getAllPosition();
             if (positionResp == null || !BG_RESPONSE_CODE_SUCCESS.equals(positionResp.getCode())) {
                 log.error("positionManagement-error: 获取仓位信息失败, rs: {}", JsonUtil.toJson(positionResp));
                 return;
@@ -512,14 +507,14 @@ public class DualMovingAverageStrategyV1Service {
             Map<String, List<BitgetAllPositionResp>> positionMap = positions.stream().collect(Collectors.groupingBy(BitgetAllPositionResp::getSymbol));
 
             // 更新是否允许开单的标记
-            allowOpenMap.replaceAll((symbol, oldAllow) -> !positionMap.containsKey(symbol));
+            allowOpenMap.forEach((symbol, atomicFlag) -> atomicFlag.set(!positionMap.containsKey(symbol)));
 
             //必须有仓位才能执行后续操作
             if (positions.isEmpty()) return;
 
 
             // 获取当前计划止盈止损委托
-            ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetCustomService.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
+            ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetSession.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
             if (planResp == null || !BG_RESPONSE_CODE_SUCCESS.equals(planResp.getCode())) {
                 log.error("positionManagement-error: 获取计划委托信息失败, rs: {}", JsonUtil.toJson(planResp));
                 return;
@@ -528,28 +523,35 @@ public class DualMovingAverageStrategyV1Service {
             List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = Optional.ofNullable(planResp.getData()).map(BitgetOrdersPlanPendingResp::getEntrustedList).orElse(Collections.emptyList());
 
             for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
+                //计划委托类型 pos_loss：仓位止损
                 if (!BG_PLAN_TYPE_POS_LOSS.equals(order.getPlanType())) continue;
+                // 检查止损计划的更新时间是否超过10分钟 , 如果未超过则不处理
+                DateTime utime = DateUtil.offsetMinute(new Date(Long.parseLong(order.getUTime())), 10);
+                if (DateUtil.compare(utime, new Date()) > 0) continue;
 
                 String symbol = order.getSymbol();
-                DualMovingAverageSignal signal = dmasMap.get(symbol);
+                BigDecimal averagePr = dmasMap.get(symbol);
                 BigDecimal lastPr = btrMap.get(symbol);
-                List<BitgetAllPositionResp> symbolPositions = positionMap.get(symbol);
+                DualMovingAverageStrategyConfig config = configMap.get(symbol);
+                BitgetAllPositionResp position = positionMap.get(symbol).getFirst();
 
-                if (signal == null || symbolPositions == null || symbolPositions.isEmpty() || lastPr == null)
-                    continue;
+                if (averagePr == null || position == null || lastPr == null) continue;
 
                 BigDecimal triggerPrice = new BigDecimal(order.getTriggerPrice());
-                BigDecimal openPriceAvg = new BigDecimal(symbolPositions.getFirst().getOpenPriceAvg());
+                BigDecimal openPriceAvg = new BigDecimal(position.getBreakEvenPrice() != null ? position.getBreakEvenPrice() : position.getOpenPriceAvg());
+
 
                 if (BG_SIDE_SELL.equals(order.getSide())) {
-                    BigDecimal newStop = signal.getLowPrice();
-                    if (shouldUpdateStopLoss(newStop, triggerPrice, openPriceAvg, lastPr, true)) {
-                        modifyStopLossOrder(order, newStop);
+                    if (shouldUpdateStopLoss(averagePr, triggerPrice, openPriceAvg, lastPr, true)) {
+                        // 跌 0.1%
+                        BigDecimal downPrice = averagePr.multiply(BigDecimal.valueOf(0.999)).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        modifyStopLossOrder(order, downPrice);
                     }
                 } else if (BG_SIDE_BUY.equals(order.getSide())) {
-                    BigDecimal newStop = signal.getHighPrice();
-                    if (shouldUpdateStopLoss(newStop, triggerPrice, openPriceAvg, lastPr, false)) {
-                        modifyStopLossOrder(order, newStop);
+                    if (shouldUpdateStopLoss(averagePr, triggerPrice, openPriceAvg, lastPr, false)) {
+                        // 涨 0.1%
+                        BigDecimal upPrice = averagePr.multiply(BigDecimal.valueOf(1.001)).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        modifyStopLossOrder(order, upPrice);
                     }
                 }
             }
@@ -561,13 +563,38 @@ public class DualMovingAverageStrategyV1Service {
     /**
      * 判断是否应更新止损价格
      */
-    private boolean shouldUpdateStopLoss(BigDecimal signalPrice, BigDecimal triggerPrice, BigDecimal openPrice, BigDecimal latestPrice, boolean isLong) {
-        // 多单：均线低价 > 开仓均价 且 > 当前止损价 且 最新价 > 均线低价
-        // 空单：均线高价 < 开仓均价 且 < 当前止损价 且 最新价 < 均线高价
+    private boolean shouldUpdateStopLoss(BigDecimal averagePr, BigDecimal triggerPrice, BigDecimal openPrice, BigDecimal latestPrice, boolean isLong) {
+        // 预定义倍数常量
+        BigDecimal ratio002Plus = BigDecimal.valueOf(1.002);  // +0.2%
+        BigDecimal ratio002Sub = BigDecimal.valueOf(0.998);  // -0.2%
+        BigDecimal ratio1Plus = BigDecimal.valueOf(1.01);   // +1%
+        BigDecimal ratio1Sub = BigDecimal.valueOf(0.99);   // -1%
+
+        int scale = openPrice.scale();
+
+        // 四个阈值价格
+        BigDecimal openPrice002Up = openPrice.multiply(ratio002Plus).setScale(scale, RoundingMode.HALF_UP);
+        BigDecimal openPrice002Dn = openPrice.multiply(ratio002Sub).setScale(scale, RoundingMode.HALF_UP);
+        BigDecimal openPrice1Up = openPrice.multiply(ratio1Plus).setScale(scale, RoundingMode.HALF_UP);
+        BigDecimal openPrice1Dn = openPrice.multiply(ratio1Sub).setScale(scale, RoundingMode.HALF_UP);
+
+        boolean isIn002Range = averagePr.compareTo(openPrice002Dn) >= 0 && averagePr.compareTo(openPrice002Up) <= 0;
+        boolean isOutside1Range = averagePr.compareTo(openPrice1Dn) < 0 || averagePr.compareTo(openPrice1Up) > 0;
+
+        //均线价格不满足触发条件 (不在 ±0.2% 内，也不在 ±1% 外)
+        if (!(isIn002Range || isOutside1Range)) return false;
+
+        //多单：均线低价 > 开仓均价 且 > 当前止损价 且 最新价 > 均线低价
         if (isLong) {
-            return signalPrice.compareTo(openPrice) > 0 && signalPrice.compareTo(triggerPrice) > 0 && latestPrice.compareTo(signalPrice) > 0;
+            return averagePr.compareTo(openPrice) > 0 &&
+                    averagePr.compareTo(triggerPrice) > 0 &&
+                    latestPrice.compareTo(averagePr) > 0;
+
         } else {
-            return signalPrice.compareTo(openPrice) < 0 && signalPrice.compareTo(triggerPrice) < 0 && latestPrice.compareTo(signalPrice) < 0;
+            //空单：均线高价 < 开仓均价 且 < 当前止损价 且 最新价 < 均线高价
+            return averagePr.compareTo(openPrice) < 0 &&
+                    averagePr.compareTo(triggerPrice) < 0 &&
+                    latestPrice.compareTo(averagePr) < 0;
         }
     }
 
@@ -583,7 +610,8 @@ public class DualMovingAverageStrategyV1Service {
             param.setSymbol(order.getSymbol());
             param.setTriggerPrice(newTriggerPrice.toPlainString());
             param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
-            ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetCustomService.modifyTpslOrder(param);
+            param.setSize("");
+            ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetSession.modifyTpslOrder(param);
             log.info("modifyStopLossOrder: 修改止损计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
         } catch (Exception e) {
             log.error("modifyStopLossOrder-error: 更新止损计划失败, order: {}, newTriggerPrice: {}, error: {}", JsonUtil.toJson(order), newTriggerPrice, e.getMessage());
@@ -607,7 +635,6 @@ public class DualMovingAverageStrategyV1Service {
                         if (marketResp.getData() != null && !marketResp.getData().isEmpty()) {
                             BitgetWSMarketResp.MarketInfo info = marketResp.getData().getFirst();
                             btrMap.put(info.getSymbol(), new BigDecimal(info.getLastPr()));
-                            //log.info("marketDataWSMonitoring: 接收到行情数据, symbol: {}, lastPrice: {}", info.getSymbol(), info.getLastPr());
                         }
                     }
                 });

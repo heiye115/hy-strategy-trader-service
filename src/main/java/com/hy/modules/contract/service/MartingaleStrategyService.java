@@ -329,6 +329,7 @@ public class MartingaleStrategyService {
                 CompoundCalculator.CompoundRow plan = CompoundCalculator.getCompoundPlan(orderParam.getAccountBalance());
                 if (gt(plan.getPosition(), maxTotalMargin)) {
                     maxTotalMargin = plan.getPosition();
+                    log.info("handleSuccessfulOrder: 复利模式下，最大投入保证金:{} 复利计划={}", maxTotalMargin.toPlainString(), JsonUtil.toJson(plan));
                 }
             }
             int maxAddCount = config.getMaxOpenTimes();

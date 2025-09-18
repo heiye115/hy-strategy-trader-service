@@ -1,19 +1,18 @@
 package com.hy.modules.contract.task;
 
-import com.hy.modules.contract.service.RangeTradingStrategyV7Service;
+import com.hy.modules.contract.service.ShortTermTradingStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 @Slf4j
-@Service
-public class RangeTradingStrategyTaskV7Service {
+//@Service
+public class ShortTermTradingStrategyTaskService {
 
-    private final RangeTradingStrategyV7Service rangeTradingStrategyService;
+    private final ShortTermTradingStrategyService shortTermTradingStrategyV1Service;
 
-    public RangeTradingStrategyTaskV7Service(RangeTradingStrategyV7Service rangeTradingStrategyService) {
-        this.rangeTradingStrategyService = rangeTradingStrategyService;
+    public ShortTermTradingStrategyTaskService(ShortTermTradingStrategyService shortTermTradingStrategyV1Service) {
+        this.shortTermTradingStrategyV1Service = shortTermTradingStrategyV1Service;
     }
 
     /**
@@ -22,7 +21,7 @@ public class RangeTradingStrategyTaskV7Service {
      */
     @PostConstruct
     public void init() {
-        rangeTradingStrategyService.start();
+        shortTermTradingStrategyV1Service.start();
     }
 
     /*
@@ -37,24 +36,12 @@ public class RangeTradingStrategyTaskV7Service {
     @Scheduled(fixedRate = 10000)
     public void kLineMonitoring() {
         try {
-            rangeTradingStrategyService.startKlineMonitoring();
+            shortTermTradingStrategyV1Service.startKlineMonitoring();
         } catch (Exception e) {
             log.error("kLineMonitoring-error", e);
         }
     }
 
-    /**
-     * 历史K线监控
-     * 每天凌晨执行一次
-     **/
-    @Scheduled(cron = "0 0 0 * * ?")
-    public void historicalKLineMonitoring() {
-        try {
-            rangeTradingStrategyService.startHistoricalKlineMonitoring();
-        } catch (Exception e) {
-            log.error("historicalKLineMonitoring-error", e);
-        }
-    }
 
     /**
      * 获取行情数据
@@ -63,7 +50,7 @@ public class RangeTradingStrategyTaskV7Service {
     @Scheduled(fixedRate = 1000)
     public void marketDataMonitoring() {
         try {
-            rangeTradingStrategyService.startMarketDataMonitoring();
+            shortTermTradingStrategyV1Service.startMarketDataMonitoring();
         } catch (Exception e) {
             log.error("marketDataMonitoring-error", e);
         }
@@ -77,7 +64,7 @@ public class RangeTradingStrategyTaskV7Service {
     @Scheduled(fixedRate = 200)
     public void signalOrderMonitoring() {
         try {
-            rangeTradingStrategyService.monitorTradingSignals();
+            shortTermTradingStrategyV1Service.monitorTradingSignals();
         } catch (Exception e) {
             log.error("signalOrderMonitoring-error", e);
         }
@@ -90,7 +77,7 @@ public class RangeTradingStrategyTaskV7Service {
     @Scheduled(fixedDelay = 2000)
     public void positionManagement() {
         try {
-            rangeTradingStrategyService.managePositions();
+            shortTermTradingStrategyV1Service.managePositions();
         } catch (Exception e) {
             log.error("positionManagement-error", e);
         }
@@ -104,7 +91,7 @@ public class RangeTradingStrategyTaskV7Service {
     //@Scheduled(fixedRate = 20000)
     public void sendRangePriceEmail() {
         try {
-            rangeTradingStrategyService.sendRangePriceEmail();
+            shortTermTradingStrategyV1Service.sendRangePriceEmail();
         } catch (Exception e) {
             log.error("sendRangePriceEmail-error", e);
         }
