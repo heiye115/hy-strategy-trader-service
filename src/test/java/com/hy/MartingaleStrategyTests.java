@@ -146,6 +146,11 @@ public class MartingaleStrategyTests {
         martingaleStrategyService.managePositions();
     }
 
+    @Test
+    public void t2() {
+        martingaleStrategyService.initializeConfig();
+    }
+
     public static void main(String[] args) {
         BigDecimal entryPrice = new BigDecimal("4618.38"); // 初始下单价
         BigDecimal baseStep = new BigDecimal("0.01");         // 1%

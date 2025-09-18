@@ -26,6 +26,19 @@ public class MartingaleStrategyTaskService {
         martingaleStrategyService.init();
     }
 
+    /***
+     * 加载配置
+     * 每60秒执行一次
+     **/
+    @Scheduled(fixedDelay = 60000)
+    public void loadConfig() {
+        try {
+            martingaleStrategyService.initializeConfig();
+        } catch (Exception e) {
+            log.error("loadConfig-error", e);
+        }
+    }
+
     /**
      * 启动马丁策略
      * 每1000毫秒执行一次

@@ -2,6 +2,8 @@ package com.hy.modules.contract.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.crypto.digest.DigestAlgorithm;
+import cn.hutool.crypto.digest.Digester;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.hy.common.enums.BitgetAccountType;
@@ -19,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -51,6 +54,11 @@ public class MartingaleStrategyService {
     private final TaskExecutor taskExecutor;
 
     /**
+     * Redis操作模板
+     */
+    private final StringRedisTemplate redisTemplate;
+
+    /**
      * 邮件接收地址
      */
     @Value("${spring.mail.username}")
@@ -69,40 +77,99 @@ public class MartingaleStrategyService {
      */
     private final AtomicBoolean ORDER_CONSUMER_STARTED = new AtomicBoolean(false);
 
-    public MartingaleStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor) {
+    /**
+     * Redis中存储马丁格尔策略配置的key
+     **/
+    private static final String MARTINGALE_STRATEGY_KEY = "md_conf";
+
+    public MartingaleStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor, StringRedisTemplate redisTemplate) {
         this.bitgetSession = bitgetCustomService.use(BitgetAccountType.MARTINGALE);
         this.mailService = mailService;
         this.taskExecutor = taskExecutor;
+        this.redisTemplate = redisTemplate;
     }
 
     /**
      * 策略配置映射 - 存储各币种的交易策略参数
      */
-    public final static Map<String, MartingaleStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>() {
-        {
-            // BTC配置：杠杆100倍，跌0.5%加仓，止盈2% 开启复利模式
-            put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 0.5, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001", true));
-            // ETH配置：杠杆100倍，跌1%加仓，止盈2%
-            put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 100, 1.0, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.01", false));
-        }
-    };
+    public final static Map<String, MartingaleStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>();
 
     /**
      * 是否允许开单（线程安全版）
      * key: symbol, value: 是否允许开单（AtomicBoolean 保证原子性）
      **/
-    private static final Map<String, AtomicBoolean> allowOpenMap = new ConcurrentHashMap<>(STRATEGY_CONFIG_MAP.values().stream().collect(Collectors.toMap(MartingaleStrategyConfig::getSymbol, v -> new AtomicBoolean(false))));
+    private static final Map<String, AtomicBoolean> allowOpenMap = new ConcurrentHashMap<>();
+
+    private void loadDefaultConfig() {
+        // BTC配置：杠杆100倍，跌0.5%加仓，止盈2% 开启复利模式
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 0.5, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001", true));
+        // ETH配置：杠杆100倍，跌1%加仓，止盈2%
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 100, 1.0, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.01", false));
+
+        allowOpenMap.putAll(STRATEGY_CONFIG_MAP.values().stream().collect(Collectors.toMap(MartingaleStrategyConfig::getSymbol, v -> new AtomicBoolean(false))));
+    }
 
     /**
      * 初始化马丁策略交易服务
      * 初始化账户配置、启动订单消费者、建立WebSocket连接
      */
     public void init() {
+        // 加载配置
+        initializeConfig();
         // 初始化Bitget账户配置
         initializeBitgetAccount();
         // 启动订单消费者线程
         startOrderConsumer();
         log.info("马丁策略交易服务启动完成, 当前配置: {}", JsonUtil.toJson(STRATEGY_CONFIG_MAP));
+    }
+
+    /***
+     * 加载配置
+     **/
+    public void initializeConfig() {
+        try {
+            List<Object> mdConfs = loadFromRedis();
+            if (mdConfs.isEmpty()) {
+                loadDefaultConfig();
+            } else {
+                updateConfig(mdConfs);
+            }
+        } catch (Exception e) {
+            log.error("initializeConfig-error", e);
+        }
+    }
+
+    private List<Object> loadFromRedis() {
+        try {
+            return redisTemplate.opsForHash().values(MARTINGALE_STRATEGY_KEY);
+        } catch (Exception e) {
+            log.error("loadFromRedis-error", e);
+            return Collections.emptyList();
+        }
+    }
+
+
+    private void updateConfig(List<Object> mdConfs) {
+        Digester sha256 = new Digester(DigestAlgorithm.SHA256);
+        for (Object mdConf : mdConfs) {
+            MartingaleStrategyConfig newConfig = JsonUtil.toBean(String.valueOf(mdConf), MartingaleStrategyConfig.class);
+            STRATEGY_CONFIG_MAP.merge(newConfig.getSymbol(), newConfig, (oldConfig, latestConfig) -> {
+                if (isConfigChanged(oldConfig, latestConfig, sha256)) {
+                    log.info("updateConfig: 配置更新, symbol={}, oldConfig={}, newConfig={}", newConfig.getSymbol(), JsonUtil.toJson(oldConfig), JsonUtil.toJson(latestConfig));
+                    if (latestConfig.getEnable() && !oldConfig.getLeverage().equals(latestConfig.getLeverage())) {
+                        setLeverageForSymbol(latestConfig);
+                        log.info("updateConfig: 配置更新后，重新设置杠杆, symbol={}, leverage={}", latestConfig.getSymbol(), latestConfig.getLeverage());
+                    }
+                    return latestConfig;
+                }
+                return oldConfig;
+            });
+            allowOpenMap.putIfAbsent(newConfig.getSymbol(), new AtomicBoolean(false));
+        }
+    }
+
+    private boolean isConfigChanged(MartingaleStrategyConfig oldConfig, MartingaleStrategyConfig newConfig, Digester sha256) {
+        return !sha256.digestHex(JsonUtil.toJson(oldConfig)).equals(sha256.digestHex(JsonUtil.toJson(newConfig)));
     }
 
     /**
@@ -190,6 +257,7 @@ public class MartingaleStrategyService {
             STRATEGY_CONFIG_MAP.forEach((symbol, config) -> {
                 try {
                     if (!config.getEnable()) return;
+                    if (!allowOpenMap.containsKey(symbol)) return;
                     // 原子操作：如果当前是 true，才能改成 false 并继续执行
                     if (!allowOpenMap.get(symbol).compareAndSet(true, false)) {
                         // 已经是 false 了，直接跳过
