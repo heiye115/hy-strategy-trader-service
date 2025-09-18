@@ -160,17 +160,17 @@ public class MartingaleStrategyService {
                     }
                     return newConfig;
                 }
-                // 更新
-                if (!Objects.equals(oldConfig, newConfig)) {
-                    log.info("loadConfig: 配置更新, symbol={}, oldConfig={}, newConfig={}", symbol, JsonUtil.toJson(oldConfig), JsonUtil.toJson(newConfig));
-                    if (newConfig.getEnable() && !Objects.equals(oldConfig.getLeverage(), newConfig.getLeverage())) {
-                        //设置杠杆倍数
-                        setLeverageForSymbol(newConfig);
-                        log.info("loadConfig: 配置更新后，重新设置杠杆, symbol={}, leverage={}", symbol, newConfig.getLeverage());
-                    }
-                    return newConfig;
+
+                // 内容相同就不更新（用 JSON 字符串判断）
+                if (JsonUtil.toJson(oldConfig).equals(JsonUtil.toJson(newConfig))) return oldConfig;
+
+                log.info("loadConfig: 配置更新, symbol={}, oldConfig={}, newConfig={}", symbol, JsonUtil.toJson(oldConfig), JsonUtil.toJson(newConfig));
+                if (newConfig.getEnable() && !Objects.equals(oldConfig.getLeverage(), newConfig.getLeverage())) {
+                    //设置杠杆倍数
+                    setLeverageForSymbol(newConfig);
+                    log.info("loadConfig: 配置更新后，重新设置杠杆, symbol={}, leverage={}", symbol, newConfig.getLeverage());
                 }
-                return oldConfig; // 配置没变，保持原样
+                return newConfig;
             });
             allowOpenMap.putIfAbsent(newConfig.getSymbol(), new AtomicBoolean(false));
         }
