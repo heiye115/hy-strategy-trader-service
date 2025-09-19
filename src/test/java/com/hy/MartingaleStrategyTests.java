@@ -149,7 +149,6 @@ public class MartingaleStrategyTests {
     @Test
     public void t2() {
         martingaleStrategyService.initializeConfig();
-        martingaleStrategyService.initializeConfig();
     }
 
     @Test

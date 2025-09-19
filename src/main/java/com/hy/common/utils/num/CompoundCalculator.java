@@ -150,12 +150,14 @@ public class CompoundCalculator {
     // 测试
     public static void main(String[] args) {
 
-//        List<CompoundRow> rows = getCompoundTable(100, new BigDecimal("100"), new BigDecimal("500"));
-//        rows.forEach(System.out::println);
+        List<CompoundRow> rows = getCompoundTable(100, new BigDecimal("100"), new BigDecimal("500"));
+        for (CompoundRow row : rows) {
+            System.out.println(row.round + "," + row.position + "," + row.margin + "," + row.total);
+        }
 //
         BigDecimal current1 = new BigDecimal("671.62");
 //        System.out.println(JsonUtil.toJson(matchByTotal(current1, rows)));
         CompoundRow plan = getCompoundPlan(current1);
-        System.out.println("当前总金额=" + current1 + "，对应计划：" + plan);
+        //System.out.println("当前总金额=" + current1 + "，对应计划：" + plan);
     }
 }

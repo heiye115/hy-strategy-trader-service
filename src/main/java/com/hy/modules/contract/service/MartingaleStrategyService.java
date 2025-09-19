@@ -142,7 +142,7 @@ public class MartingaleStrategyService {
         try {
             return redisTemplate.opsForHash().values(MARTINGALE_STRATEGY_KEY);
         } catch (Exception e) {
-            log.error("loadFromRedis-error", e);
+            log.error("loadFromRedis-error:连接Redis失败，无法从远端加载马丁策略配置");
             return Collections.emptyList();
         }
     }
