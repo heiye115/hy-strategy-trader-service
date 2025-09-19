@@ -149,6 +149,13 @@ public class MartingaleStrategyTests {
     @Test
     public void t2() {
         martingaleStrategyService.initializeConfig();
+        martingaleStrategyService.initializeConfig();
+    }
+
+    @Test
+    public void t3() {
+        martingaleStrategyService.loadDefaultConfig();
+        System.out.println(JsonUtil.toJson(MartingaleStrategyService.STRATEGY_CONFIG_MAP));
     }
 
     public static void main(String[] args) {
