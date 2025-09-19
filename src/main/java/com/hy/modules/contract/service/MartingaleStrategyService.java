@@ -128,7 +128,7 @@ public class MartingaleStrategyService {
     public void initializeConfig() {
         try {
             List<Object> mdConfs = loadFromRedis();
-            if (mdConfs.isEmpty()) {
+            if (mdConfs.isEmpty() && STRATEGY_CONFIG_MAP.isEmpty()) {
                 loadDefaultConfig();
             } else {
                 updateConfig(mdConfs);
