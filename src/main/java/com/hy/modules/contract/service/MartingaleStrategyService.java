@@ -637,11 +637,12 @@ public class MartingaleStrategyService {
                 BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 BigDecimal maxInvestAmount = config.getMaxInvestAmount();
                 if (config.getCompoundStepEnable()) {
-                    Map<String, BitgetAccountsResp> accountInfo = getAccountInfo();
-                    BitgetAccountsResp accountsResp = accountInfo.get(DEFAULT_CURRENCY_USDT);
-                    CompoundCalculator.CompoundRow plan = getCompoundPlanPosition(new BigDecimal(accountsResp.getAvailable()));
-                    if (gt(plan.getPosition(), maxInvestAmount)) {
-                        maxInvestAmount = plan.getPosition();
+                    BitgetAccountsResp accountsResp = getAccountInfo().get(DEFAULT_CURRENCY_USDT);
+                    if (accountsResp != null && accountsResp.getAvailable() != null) {
+                        CompoundCalculator.CompoundRow plan = getCompoundPlanPosition(new BigDecimal(accountsResp.getAvailable()));
+                        if (gt(plan.getPosition(), maxInvestAmount)) {
+                            maxInvestAmount = plan.getPosition();
+                        }
                     }
                 }
 
