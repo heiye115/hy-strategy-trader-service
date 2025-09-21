@@ -401,9 +401,9 @@ public class MartingaleStrategyService {
             BigDecimal stepMultiplier = BigDecimal.valueOf(config.getAddPositionPriceMultiple());    // 加仓价差倍数
             BigDecimal leverage = BigDecimal.valueOf(config.getLeverage());            // 杠杆倍数
             BigDecimal maxTotalMargin = config.getMaxInvestAmount(); // 最大投入保证金
-            //开启复利模式
-            if (config.getCompoundEnable()) {
-                CompoundCalculator.CompoundRow plan = CompoundCalculator.getCompoundPlan(orderParam.getAccountBalance());
+            //开启阶梯复利模式
+            if (config.getCompoundStepEnable()) {
+                CompoundCalculator.CompoundRow plan = getCompoundPlanPosition(orderParam.getAccountBalance());
                 if (gt(plan.getPosition(), maxTotalMargin)) {
                     maxTotalMargin = plan.getPosition();
                     log.info("handleSuccessfulOrder: 复利模式下，最大投入保证金:{} 复利计划={}", maxTotalMargin.toPlainString(), JsonUtil.toJson(plan));
@@ -459,6 +459,13 @@ public class MartingaleStrategyService {
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult), e);
         }
+    }
+
+    /**
+     * 获取复利计划仓位保证金
+     **/
+    public CompoundCalculator.CompoundRow getCompoundPlanPosition(BigDecimal accountBalance) {
+        return CompoundCalculator.getCompoundPlan(accountBalance);
     }
 
     /**
@@ -629,6 +636,14 @@ public class MartingaleStrategyService {
                 BigDecimal total = new BigDecimal(position.getTotal());
                 BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 BigDecimal maxInvestAmount = config.getMaxInvestAmount();
+                if (config.getCompoundStepEnable()) {
+                    Map<String, BitgetAccountsResp> accountInfo = getAccountInfo();
+                    BitgetAccountsResp accountsResp = accountInfo.get(DEFAULT_CURRENCY_USDT);
+                    CompoundCalculator.CompoundRow plan = getCompoundPlanPosition(new BigDecimal(accountsResp.getAvailable()));
+                    if (gt(plan.getPosition(), maxInvestAmount)) {
+                        maxInvestAmount = plan.getPosition();
+                    }
+                }
 
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;

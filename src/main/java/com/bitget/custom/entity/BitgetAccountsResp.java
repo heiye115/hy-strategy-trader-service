@@ -65,10 +65,45 @@ public class BitgetAccountsResp {
     /**
      * 未实现盈亏
      **/
-    private String unrealizedPl;
+    private String unrealizedPL;
 
     /**
      * 体验金
      **/
     private String coupon;
+
+
+    private String grant;
+
+    /**
+     * 联合保证金
+     **/
+    private String unionTotalMargin;
+
+    /**
+     * 联合保证金模式下的可用
+     **/
+    private String unionAvailable;
+
+    /**
+     * 联合保证金模式下的维持保证金
+     **/
+    private String unionMm;
+
+    /**
+     * 联合保证金
+     * union 联合保证金
+     * single 单币种保证金
+     **/
+    private String assetMode;
+
+    /**
+     * 逐仓占用保证金
+     **/
+    private String isolatedMargin;
+
+    /**
+     * 全仓占用保证金
+     **/
+    private String crossedMargin;
 }

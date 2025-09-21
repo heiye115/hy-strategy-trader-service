@@ -83,16 +83,16 @@ public class MartingaleStrategyConfig {
     private String minTradeSize;
 
     /**
-     * 开启复利模式
+     * 开启阶梯复利模式
      **/
-    private Boolean compoundEnable;
+    private Boolean compoundStepEnable;
 
     /**
      * 首单与加仓单间隔百分比 默认0%
      **/
     private Double firstAddPositionPercentThreshold;
 
-    public MartingaleStrategyConfig(Boolean enable, String symbol, Direction direction, Integer volumePlace, Integer pricePlace, Integer leverage, Double addPositionPercentThreshold, Double takeProfitPercentThreshold, BigDecimal maxInvestAmount, Integer maxOpenTimes, Double addPositionAmountMultiple, Double addPositionPriceMultiple, String minTradeSize, Boolean compoundEnable, Double firstAddPositionPercentThreshold) {
+    public MartingaleStrategyConfig(Boolean enable, String symbol, Direction direction, Integer volumePlace, Integer pricePlace, Integer leverage, Double addPositionPercentThreshold, Double takeProfitPercentThreshold, BigDecimal maxInvestAmount, Integer maxOpenTimes, Double addPositionAmountMultiple, Double addPositionPriceMultiple, String minTradeSize, Boolean compoundStepEnable, Double firstAddPositionPercentThreshold) {
         this.enable = enable;
         this.symbol = symbol;
         this.direction = direction;
@@ -106,7 +106,7 @@ public class MartingaleStrategyConfig {
         this.addPositionAmountMultiple = addPositionAmountMultiple;
         this.addPositionPriceMultiple = addPositionPriceMultiple;
         this.minTradeSize = minTradeSize;
-        this.compoundEnable = compoundEnable;
+        this.compoundStepEnable = compoundStepEnable;
         this.firstAddPositionPercentThreshold = firstAddPositionPercentThreshold;
     }
 }
