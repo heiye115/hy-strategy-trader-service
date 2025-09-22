@@ -103,7 +103,7 @@ public class RangeTradingStrategyService {
     /**
      * K线数据获取数量限制
      */
-    private final static Integer KLINE_DATA_LIMIT = 240;
+    private final static Integer KLINE_DATA_LIMIT = 300;
 
     /**
      * 历史K线数据获取数量限制
@@ -276,11 +276,16 @@ public class RangeTradingStrategyService {
                         log.error("startKlineMonitoring-error: 获取K线数据失败, symbol: {}, rs: {}", config.getSymbol(), JsonUtil.toJson(rs));
                         return;
                     }
-                    List<BitgetMixMarketCandlesResp> list = HISTORICAL_KLINE_CACHE.get(config.getSymbol());
-                    if (list == null || list.isEmpty()) return;
-                    list.addAll(rs.getData());
-
-                    List<BitgetMixMarketCandlesResp> newCandles = distinctAndSortByTimestamp(list);
+                    // 先取旧数据（如果没有则初始化为空列表）
+                    List<BitgetMixMarketCandlesResp> oldList = HISTORICAL_KLINE_CACHE.getOrDefault(config.getSymbol(), new ArrayList<>());
+                    // 如果历史数据为空，直接返回
+                    if (oldList.isEmpty()) return;
+                    // 新建一个副本，避免直接操作缓存里的 List
+                    List<BitgetMixMarketCandlesResp> merged = new ArrayList<>(oldList);
+                    merged.addAll(rs.getData());
+                    // 去重并按时间排序
+                    List<BitgetMixMarketCandlesResp> newCandles = distinctAndSortByTimestamp(merged);
+                    // 覆盖回缓存
                     HISTORICAL_KLINE_CACHE.put(config.getSymbol(), newCandles);
                     // 计算有效区间大小
                     List<BitgetMixMarketCandlesResp> validCandles = calculateValidRangeSize(newCandles);
@@ -1051,57 +1056,12 @@ public class RangeTradingStrategyService {
      */
     public static List<BitgetMixMarketCandlesResp> distinctAndSortByTimestamp(List<BitgetMixMarketCandlesResp> candles) {
         // 1. 先用 Map 去重（key=timestamp）
-        Map<Long, BitgetMixMarketCandlesResp> map = candles.stream()
-                .collect(Collectors.toMap(BitgetMixMarketCandlesResp::getTimestamp,
-                        Function.identity(), (oldVal, newVal) -> oldVal));
+        Map<Long, BitgetMixMarketCandlesResp> map = candles.stream().collect(Collectors.toMap(BitgetMixMarketCandlesResp::getTimestamp,
+                Function.identity(), (oldVal, newVal) -> newVal));
 
         // 2. 再按 timestamp 升序排序
         return map.values().stream().sorted(Comparator.comparing(BitgetMixMarketCandlesResp::getTimestamp)).collect(Collectors.toList());
     }
-
-    /**
-     * 启动历史K线监控
-     * 通过REST API获取历史K线数据
-     */
-//    public void startHistoricalKlineMonitoring() {
-//        // 获取过去6个月，每段200小时的时间段
-//        List<CandlesDate> candlesDate = getCandlesDate(6, 200);
-//        for (RangePriceStrategyConfig config : STRATEGY_CONFIG_MAP.values()) {
-//            taskExecutor.execute(() -> {
-//                List<BitgetMixMarketCandlesResp> candles = new ArrayList<>();
-//                //执行状态
-//                boolean success = true;
-//                for (CandlesDate date : candlesDate) {
-//                    try {
-//                        // 获取K线数据
-//                        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMixMarketHistoryCandles(
-//                                config.getSymbol(),
-//                                BG_PRODUCT_TYPE_USDT_FUTURES,
-//                                config.getGranularity().getCode(),
-//                                HISTORICAL_KLINE_DATA_LIMIT,
-//                                date.getStartTime().toString(),
-//                                date.getEndTime().toString());
-//                        if (rs.getData() == null || rs.getData().isEmpty()) {
-//                            log.warn("startHistoricalKlineMonitoring: symbol={}, timeRange=({}, {}), 未获取到K线数据", config.getSymbol(), date.getStartTime(), date.getEndTime());
-//                            success = false;
-//                            continue;
-//                        }
-//                        candles.addAll(rs.getData());
-//                        // 避免请求过快 等待200毫秒
-//                        Thread.sleep(200L);
-//                    } catch (Exception e) {
-//                        success = false;
-//                        log.error("startHistoricalKlineMonitoring-error: symbol={}", config.getSymbol(), e);
-//                    }
-//                }
-//                if (success) {
-//                    HISTORICAL_KLINE_CACHE.put(config.getSymbol(), distinctAndSortByTimestamp(candles));
-//                    log.info("startHistoricalKlineMonitoring: symbol={}, 获取到历史K线数据数量: {}", config.getSymbol(), candles.size());
-//                }
-//            });
-//        }
-//    }
-
 
     /**
      * 启动历史K线监控

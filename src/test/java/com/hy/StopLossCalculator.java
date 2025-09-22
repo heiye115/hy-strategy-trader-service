@@ -45,8 +45,8 @@ public class StopLossCalculator {
     }
 
     public static void main(String[] args) {
-        BigDecimal avgEntryPrice = new BigDecimal("4623.93"); // 当前盈亏平衡价
-        BigDecimal positionQty = new BigDecimal("0.5");        // 持仓数量
+        BigDecimal avgEntryPrice = new BigDecimal("4461.82"); // 当前盈亏平衡价
+        BigDecimal positionQty = new BigDecimal("0.25");        // 持仓数量
         BigDecimal targetLoss = new BigDecimal("100");       // 允许亏损（正数）
 
         BigDecimal stopLossLong = calculateStopLossPrice(avgEntryPrice, positionQty, targetLoss, Direction.LONG, 2);
