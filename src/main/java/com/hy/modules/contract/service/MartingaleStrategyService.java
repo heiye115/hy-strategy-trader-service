@@ -104,6 +104,8 @@ public class MartingaleStrategyService {
         STRATEGY_CONFIG_MAP.put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 0.5, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001", true, 0.0));
         // ETH配置：杠杆100倍，跌1%加仓，止盈2%
         STRATEGY_CONFIG_MAP.put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 100, 2.0, 3.0, BigDecimal.valueOf(100.0), 15, 1.1, 1.1, "0.01", false, 0.0));
+        // SOLUSDT配置：杠杆100倍，跌5%加仓，止盈5%
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.SOLUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), Direction.LONG, 1, 3, 100, 5.0, 5.0, BigDecimal.valueOf(100.0), 10, 1.1, 1.1, "0.1", false, 3.0));
 
         allowOpenMap.putAll(STRATEGY_CONFIG_MAP.values().stream().collect(Collectors.toMap(MartingaleStrategyConfig::getSymbol, v -> new AtomicBoolean(false))));
     }
@@ -154,8 +156,10 @@ public class MartingaleStrategyService {
                 if (oldConfig == null) {
                     // 新增
                     if (newConfig.getEnable()) {
-                        // 初始化Bitget账户配置
-                        initializeBitgetAccount();
+                        // 设置杠杆倍数
+                        setLeverageForSymbol(newConfig);
+                        // 设置保证金模式为全仓
+                        setMarginModeForSymbol(newConfig);
                         log.info("loadConfig: 新增配置, symbol={}, config={}", symbol, JsonUtil.toJson(newConfig));
                     }
                     return newConfig;
