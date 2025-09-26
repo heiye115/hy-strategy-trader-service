@@ -154,7 +154,7 @@ public class RangeTradingStrategyService {
             // BTC配置：杠杆50倍，开仓金额50USDT，价格精度4位，数量精度1位
             put(SymbolEnum.BTCUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), 50, BigDecimal.valueOf(10.0), 4, 1, BitgetEnum.H1, 50.0, 30.0));
             // ETH配置：杠杆20倍，开仓金额50USDT，价格精度2位，数量精度2位
-            put(SymbolEnum.ETHUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), 20, BigDecimal.valueOf(10.0), 2, 2, BitgetEnum.H1, 50.0, 30.0));
+            //put(SymbolEnum.ETHUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), 20, BigDecimal.valueOf(10.0), 2, 2, BitgetEnum.H1, 50.0, 30.0));
             // XRP配置：杠杆2倍，开仓金额50USDT，价格精度0位，数量精度4位
             //put(SymbolEnum.XRPUSDT.getCode(), new RangePriceStrategyConfig(true, SymbolEnum.XRPUSDT.getCode(), 2, BigDecimal.valueOf(50.0), 0, 4, BitgetEnum.H1, 50.0));
             // SOL配置：杠杆2倍，开仓金额50USDT，价格精度1位，数量精度3位
@@ -219,10 +219,6 @@ public class RangeTradingStrategyService {
      */
     private void setLeverageForSymbol(String symbol, Integer leverage) {
         try {
-            // 限制最大杠杆倍数为50
-            if (leverage > 50) {
-                leverage = 50;
-            }
             ResponseResult<BitgetSetLeverageResp> rs = bitgetSession.setLeverage(
                     symbol, BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, leverage.toString(), null
             );
