@@ -158,8 +158,8 @@ public class MartingaleStrategyTests {
     }
 
     public static void main(String[] args) {
-        BigDecimal entryPrice = new BigDecimal("200"); // 初始下单价
-        BigDecimal baseStep = new BigDecimal("0.05");         // 1%
+        BigDecimal entryPrice = new BigDecimal("4000"); // 初始下单价
+        BigDecimal baseStep = new BigDecimal("0.03");         // 1%
         BigDecimal amountMultiplier = new BigDecimal("1.1");  // 加仓金额倍数
         BigDecimal stepMultiplier = new BigDecimal("1.1");    // 加仓价差倍数
         BigDecimal leverage = new BigDecimal("50");            // 杠杆倍数
