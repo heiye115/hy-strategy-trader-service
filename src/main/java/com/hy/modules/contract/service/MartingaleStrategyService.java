@@ -18,19 +18,20 @@ import com.hy.modules.contract.entity.MartingaleStrategyConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
@@ -50,7 +51,12 @@ public class MartingaleStrategyService {
     /**
      * 异步任务执行器
      */
-    private final TaskExecutor taskExecutor;
+    private final SimpleAsyncTaskExecutor taskExecutor;
+
+    /**
+     * 定时任务执行器
+     */
+    private final SimpleAsyncTaskScheduler taskScheduler;
 
     /**
      * Redis操作模板
@@ -81,11 +87,12 @@ public class MartingaleStrategyService {
      **/
     private static final String MARTINGALE_STRATEGY_KEY = "md_conf";
 
-    public MartingaleStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor, StringRedisTemplate redisTemplate) {
+    public MartingaleStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, StringRedisTemplate redisTemplate, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler) {
         this.bitgetSession = bitgetCustomService.use(BitgetAccountType.MARTINGALE);
         this.mailService = mailService;
         this.taskExecutor = taskExecutor;
         this.redisTemplate = redisTemplate;
+        this.taskScheduler = taskScheduler;
     }
 
     /**
@@ -101,10 +108,9 @@ public class MartingaleStrategyService {
     private final Map<String, AtomicBoolean> allowOpenByPosition = new ConcurrentHashMap<>();
 
     /**
-     * 开单并发锁（防止重复开单）
-     * 每个 symbol 一个独立锁
+     * 开单并发锁（true = 空闲，可以开单；false = 冷却中）
      */
-    private final Map<String, ReentrantLock> openLockMap = new ConcurrentHashMap<>();
+    private final Map<String, AtomicBoolean> openLockMap = new ConcurrentHashMap<>();
 
     public void loadDefaultConfig() {
         // BTC配置：杠杆100倍，跌0.5%加仓，止盈2% 开启复利模式
@@ -274,16 +280,16 @@ public class MartingaleStrategyService {
                     return;
                 }
 
-                // 2. 获取并发锁（防止重复开单）
-                openLockMap.putIfAbsent(symbol, new ReentrantLock());
-                ReentrantLock lock = openLockMap.get(symbol);
-                // 尝试获取锁，获取失败则直接返回，避免阻塞
-                if (!lock.tryLock()) return;
+                // 2. 冷却锁检查
+                openLockMap.putIfAbsent(symbol, new AtomicBoolean(true));
+                AtomicBoolean flag = openLockMap.get(symbol);
+                if (!flag.compareAndSet(true, false)) {
+                    return; // 冷却中，禁止重复开单
+                }
 
                 try {
-                    // ✅ 提前锁死，防止因交易所延迟导致重复开单
+                    //提前锁死，防止因交易所延迟导致重复开单
                     allowOpenByPosition.put(symbol, new AtomicBoolean(false));
-
                     // 批量撤单
                     cancelAllOrdersBySymbol(symbol);
                     // 执行新一轮周期马丁策略开单
@@ -291,8 +297,8 @@ public class MartingaleStrategyService {
                 } catch (IOException e) {
                     log.error("startMartingaleStrategy-error: symbol={}", symbol, e);
                 } finally {
-                    // 释放锁
-                    lock.unlock();
+                    //延迟释放锁，避免短时间重复下单
+                    taskScheduler.schedule(() -> openLockMap.get(symbol).set(true), Instant.now().plusSeconds(10));
                 }
             });
         } catch (Exception e) {
