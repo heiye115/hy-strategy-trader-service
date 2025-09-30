@@ -2,7 +2,6 @@ package com.hy.modules.contract.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
-import cn.hutool.crypto.digest.Digester;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.hy.common.enums.BitgetAccountType;
@@ -31,6 +30,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
@@ -94,20 +94,25 @@ public class MartingaleStrategyService {
     public final static Map<String, MartingaleStrategyConfig> STRATEGY_CONFIG_MAP = new ConcurrentHashMap<>();
 
     /**
-     * 是否允许开单（线程安全版）
-     * key: symbol, value: 是否允许开单（AtomicBoolean 保证原子性）
-     **/
-    private static final Map<String, AtomicBoolean> allowOpenMap = new ConcurrentHashMap<>();
+     * 是否允许开单（业务条件）
+     * true = 没有仓位，可以开单
+     * false = 有仓位，禁止开单
+     */
+    private final Map<String, AtomicBoolean> allowOpenByPosition = new ConcurrentHashMap<>();
+
+    /**
+     * 开单并发锁（防止重复开单）
+     * 每个 symbol 一个独立锁
+     */
+    private final Map<String, ReentrantLock> openLockMap = new ConcurrentHashMap<>();
 
     public void loadDefaultConfig() {
         // BTC配置：杠杆100倍，跌0.5%加仓，止盈2% 开启复利模式
-        STRATEGY_CONFIG_MAP.put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 1.0, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001", true, 1.0));
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 0.5, 2.0, BigDecimal.valueOf(100.0), 20, 1.1, 1.1, "0.0001", true, 1.0));
         // ETH配置：杠杆50倍，跌1%加仓，止盈2%
-        STRATEGY_CONFIG_MAP.put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 50, 2.0, 3.0, BigDecimal.valueOf(100.0), 15, 1.1, 1.1, "0.01", false, 2.0));
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 50, 2.0, 3.0, BigDecimal.valueOf(100.0), 15, 1.1, 1.1, "0.01", false, 1.0));
         // SOLUSDT配置：杠杆50倍，跌5%加仓，止盈5%
-        STRATEGY_CONFIG_MAP.put(SymbolEnum.SOLUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), Direction.LONG, 1, 3, 50, 5.0, 5.0, BigDecimal.valueOf(100.0), 10, 1.1, 1.1, "0.1", false, 3.0));
-
-        allowOpenMap.putAll(STRATEGY_CONFIG_MAP.values().stream().collect(Collectors.toMap(MartingaleStrategyConfig::getSymbol, v -> new AtomicBoolean(false))));
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.SOLUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), Direction.LONG, 1, 3, 50, 5.0, 5.0, BigDecimal.valueOf(100.0), 10, 1.1, 1.1, "0.1", false, 1.0));
     }
 
     /**
@@ -176,12 +181,7 @@ public class MartingaleStrategyService {
                 }
                 return newConfig;
             });
-            allowOpenMap.putIfAbsent(newConfig.getSymbol(), new AtomicBoolean(false));
         }
-    }
-
-    private boolean isConfigChanged(MartingaleStrategyConfig oldConfig, MartingaleStrategyConfig newConfig, Digester sha256) {
-        return !sha256.digestHex(JsonUtil.toJson(oldConfig)).equals(sha256.digestHex(JsonUtil.toJson(newConfig)));
     }
 
     /**
@@ -267,20 +267,32 @@ public class MartingaleStrategyService {
     public void startMartingaleStrategy() {
         try {
             STRATEGY_CONFIG_MAP.forEach((symbol, config) -> {
+                if (!config.getEnable()) return;
+
+                // 1. 仓位状态检查（必须允许开单）
+                if (!allowOpenByPosition.getOrDefault(symbol, new AtomicBoolean(false)).get()) {
+                    return;
+                }
+
+                // 2. 获取并发锁（防止重复开单）
+                openLockMap.putIfAbsent(symbol, new ReentrantLock());
+                ReentrantLock lock = openLockMap.get(symbol);
+                // 尝试获取锁，获取失败则直接返回，避免阻塞
+                if (!lock.tryLock()) return;
+
                 try {
-                    if (!config.getEnable()) return;
-                    if (!allowOpenMap.containsKey(symbol)) return;
-                    // 原子操作：如果当前是 true，才能改成 false 并继续执行
-                    if (!allowOpenMap.get(symbol).compareAndSet(true, false)) {
-                        // 已经是 false 了，直接跳过
-                        return;
-                    }
-                    //批量撤单
+                    // ✅ 提前锁死，防止因交易所延迟导致重复开单
+                    allowOpenByPosition.put(symbol, new AtomicBoolean(false));
+
+                    // 批量撤单
                     cancelAllOrdersBySymbol(symbol);
-                    //执行新一轮周期马丁策略开单
+                    // 执行新一轮周期马丁策略开单
                     placeInitialOrder(config);
                 } catch (IOException e) {
                     log.error("startMartingaleStrategy-error: symbol={}", symbol, e);
+                } finally {
+                    // 释放锁
+                    lock.unlock();
                 }
             });
         } catch (Exception e) {
@@ -306,7 +318,6 @@ public class MartingaleStrategyService {
             List<BitgetBatchCancelOrdersParam.Order> orderIdList = entrustedList.stream().map(o -> new BitgetBatchCancelOrdersParam.Order(o.getClientOid(), o.getOrderId())).collect(Collectors.toList());
             param.setOrderIdList(orderIdList);
             ResponseResult<BitgetBatchCancelOrdersResp> bcors = bitgetSession.batchCancelOrders(param);
-
             BitgetBatchCancelOrdersResp bcorsData = bcors.getData();
             if (bcorsData != null) {
                 List<BitgetBatchCancelOrdersResp.Success> successList = bcorsData.getSuccessList();
@@ -613,8 +624,11 @@ public class MartingaleStrategyService {
             // 获取当前所有持仓
             Map<String, BitgetAllPositionResp> positionMap = getAllPosition();
 
-            // 更新是否允许开单的标记
-            allowOpenMap.forEach((symbol, atomicFlag) -> atomicFlag.set(!positionMap.containsKey(symbol)));
+            // 根据仓位更新是否允许开单
+            STRATEGY_CONFIG_MAP.keySet().forEach(symbol -> {
+                boolean hasPosition = positionMap.containsKey(symbol);
+                allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false)).set(!hasPosition);
+            });
 
             // 必须有仓位才能执行后续操作
             if (positionMap.isEmpty()) return;
