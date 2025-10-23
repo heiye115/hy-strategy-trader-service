@@ -113,8 +113,8 @@ public class MartingaleStrategyService {
     private final Map<String, AtomicBoolean> openLockMap = new ConcurrentHashMap<>();
 
     public void loadDefaultConfig() {
-        // BTC配置：杠杆20倍，跌0.5%加仓，止盈1% 开启复利模式
-        STRATEGY_CONFIG_MAP.put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 20, 0.5, 1.0, BigDecimal.valueOf(300.0), 20, 1.0, 1.1, "0.0001", true, 0.0));
+        // BTC配置：杠杆100倍，跌0.5%加仓，止盈1% 开启复利模式
+        STRATEGY_CONFIG_MAP.put(SymbolEnum.BTCUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), Direction.LONG, 4, 1, 100, 1.0, 1.0, BigDecimal.valueOf(1.0), 20, 1.0, 1.1, "0.0001", true, 0.0));
         // ETH配置：杠杆50倍，跌1%加仓，止盈2%
         //STRATEGY_CONFIG_MAP.put(SymbolEnum.ETHUSDT.getCode(), new MartingaleStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), Direction.LONG, 2, 2, 50, 2.0, 3.0, BigDecimal.valueOf(100.0), 15, 1.1, 1.1, "0.01", false, 1.0));
         // SOLUSDT配置：杠杆50倍，跌5%加仓，止盈5%
