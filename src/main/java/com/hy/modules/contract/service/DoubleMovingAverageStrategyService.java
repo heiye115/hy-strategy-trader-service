@@ -1,5 +1,6 @@
 package com.hy.modules.contract.service;
 
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.request.ws.SubscribeReq;
@@ -15,6 +16,7 @@ import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
 import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -118,6 +120,12 @@ public class DoubleMovingAverageStrategyService {
      * 开单并发锁（true = 空闲，可以开单；false = 冷却中）
      */
     private final Map<String, AtomicBoolean> openLockMap = new ConcurrentHashMap<>();
+
+    /**
+     * 邮件接收地址
+     */
+    @Value("${spring.mail.username}")
+    private String emailRecipient;
 
 
     public DoubleMovingAverageStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, StringRedisTemplate redisTemplate, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler) {
@@ -623,7 +631,11 @@ public class DoubleMovingAverageStrategyService {
                 //趋势已变化，直接平仓
                 if (!strictMATrendConfirmed) {
                     ResponseResult<BitgetClosePositionsResp> closePositions = bitgetSession.closePositions(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
-                    log.info("updateTpslPlans: 平仓结果, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
+                    log.info("updateTpslPlans: 趋势已变化，直接平仓, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
+                    //发送邮件通知
+                    String subject = "双均线策略平仓通知 - 趋势变化";
+                    String content = String.format("币种: %s 已因趋势变化被平仓。\n最新价格: %s\n时间: %s", symbol, latestPrice.toPlainString(), DateUtil.formatDateTime(new Date()));
+                    sendEmail(subject, content);
                     return;
                 }
                 for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
@@ -683,9 +695,16 @@ public class DoubleMovingAverageStrategyService {
             }
             param.setSize("");
             ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetSession.modifyTpslOrder(param);
-            log.info("modifyStopLossOrder: 修改止盈止损计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
+            //log.info("modifyStopLossOrder: 修改止盈止损计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
         } catch (Exception e) {
             log.error("modifyStopLossOrder-error: 更新止盈止损计划失败, order: {}, newTriggerPrice: {}, error: {}", JsonUtil.toJson(order), newTriggerPrice, e.getMessage());
         }
+    }
+
+    /**
+     * 发送邮件通知
+     **/
+    public void sendEmail(String subject, String content) {
+        mailService.sendSimpleMail(emailRecipient, subject, content);
     }
 }
