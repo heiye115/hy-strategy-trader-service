@@ -80,7 +80,7 @@ bitget.accounts[1].passphrase=Your Passphrase
 3. Build the project
 
 ```bash
-mvn clean install -Dmaven.test.skip=true
+mvn clean package -Dmaven.test.skip=true
 ```
 
 4. Run the service

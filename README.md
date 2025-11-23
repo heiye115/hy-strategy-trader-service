@@ -76,7 +76,7 @@ bitget.accounts[1].passphrase=您的Passphrase
 3. 构建项目
 
 ```bash
-mvn clean install -Dmaven.test.skip=true
+mvn clean package -Dmaven.test.skip=true
 ```
 
 4. 运行服务
