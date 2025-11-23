@@ -38,6 +38,7 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -607,6 +608,7 @@ public class DoubleMovingAverageStrategyService {
 
             // 获取当前计划止盈止损委托
             Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
+            log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
             updateTpslPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {
@@ -628,17 +630,22 @@ public class DoubleMovingAverageStrategyService {
                 boolean strictMATrendConfirmed = isStrictMATrendConfirmed(data);
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;
-                //趋势已变化，直接平仓
-                if (!strictMATrendConfirmed) {
-                    ResponseResult<BitgetClosePositionsResp> closePositions = bitgetSession.closePositions(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
-                    log.info("updateTpslPlans: 趋势已变化，直接平仓, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
-                    //发送邮件通知
-                    String subject = "双均线策略平仓通知 - 趋势变化";
-                    String content = String.format("币种: %s 已因趋势变化被平仓。\n最新价格: %s\n时间: %s", symbol, latestPrice.toPlainString(), DateUtil.formatDateTime(new Date()));
-                    sendEmail(subject, content);
-                    return;
-                }
+
                 for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
+                    //10分钟内不检测趋势变化，避免刚开仓就平仓
+                    long createTime = Long.parseLong(order.getCTime()) + TimeUnit.MINUTES.toMillis(10);
+                    //趋势已变化，直接平仓
+                    if (!strictMATrendConfirmed && System.currentTimeMillis() > createTime) {
+                        ResponseResult<BitgetClosePositionsResp> closePositions = bitgetSession.closePositions(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
+                        log.info("updateTpslPlans: 趋势已变化，直接平仓, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
+                        //发送邮件通知
+                        String subject = "双均线策略平仓通知 - 趋势变化";
+                        String content = String.format("币种: %s 已因趋势变化被平仓。\n最新价格: %s\n时间: %s", symbol, latestPrice.toPlainString(), DateUtil.formatDateTime(new Date()));
+                        sendEmail(subject, content);
+                        return;
+                    }
+
+
                     BigDecimal triggerPrice = new BigDecimal(order.getTriggerPrice());
                     String planType = order.getPlanType();
                     String side = order.getSide();
