@@ -281,7 +281,6 @@ public class DoubleMovingAverageStrategyService {
                         order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, presetStopLossPrice);
                     }
                 }
-                log.info("signalOrderMonitoring:  order={}", JsonUtil.toJson(order));
                 if (order != null && tryAcquireOpenLock(symbol)) {
                     //提前锁死，防止因交易所延迟导致重复开单
                     allowOpenByPosition.put(symbol, new AtomicBoolean(false));
@@ -600,7 +599,6 @@ public class DoubleMovingAverageStrategyService {
 
             // 获取当前计划止盈止损委托
             Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
-            log.info("managePositions: 当前持仓信息: {}, 当前计划委托信息: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
             updateTpslPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {

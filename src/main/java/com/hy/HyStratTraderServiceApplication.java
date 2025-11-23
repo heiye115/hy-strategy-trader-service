@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 public class HyStratTraderServiceApplication {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         SpringApplication.run(HyStratTraderServiceApplication.class, args);
         log.info("--------------------启动成功!--------------------");
     }
