@@ -98,4 +98,8 @@ public class MixOrderService {
         return ResponseUtils.handleResponse(mixOrderApi.modifyTpslOrder(paramMap).execute().body());
     }
 
+    public ResponseResult closePositions(Map<String, String> paramMap) throws IOException {
+        return ResponseUtils.handleResponse(mixOrderApi.closePositions(paramMap).execute().body());
+    }
+
 }

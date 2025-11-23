@@ -15,7 +15,7 @@ import java.math.BigDecimal;
 @Setter
 @ToString
 @NoArgsConstructor
-public class DualMovingAveragePlaceOrder {
+public class DoubleMovingAveragePlaceOrder {
 
 
     /**
@@ -48,13 +48,6 @@ public class DualMovingAveragePlaceOrder {
      **/
     private BigDecimal price;
 
-    /**
-     * 交易类型(仅限双向持仓)
-     * 双向持仓模式下必填，单向持仓时不要填，否则会报错
-     * open: 开仓
-     * close: 平仓
-     **/
-    private String tradeSide;
 
     /**
      * 订单类型
@@ -71,15 +64,14 @@ public class DualMovingAveragePlaceOrder {
     private String marginMode;
 
     /**
-     * 预设止盈值
-     * 为空则默认不设止盈。
-     **/
-    private String presetStopSurplusPrice;
-
-    /**
      * 预设止损值
      * 为空则默认不设止损。
      **/
     private String presetStopLossPrice;
+
+    /**
+     * 账户余额
+     **/
+    private BigDecimal accountBalance;
 
 }

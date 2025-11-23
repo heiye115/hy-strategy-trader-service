@@ -173,6 +173,19 @@ public class BitgetCustomService {
          * <a href="https://www.bitget.fit/zh-CN/api-doc/contract/trade/Place-Order">下单</a>
          **/
         public ResponseResult<BitgetPlaceOrderResp> placeOrder(String orderNo, String symbol, String size, String side, String tradeSide, String orderType, String marginMode) throws IOException {
+            return placeOrder(orderNo, symbol, size, side, tradeSide, orderType, marginMode, null);
+        }
+
+        /**
+         * 下单
+         * 普通用户限速10次/S 根据uid限频
+         * 交易员限速1次/S 根据uid限频
+         * 描述
+         * 单向持仓时，可省略tradeSide参数；
+         * 双向持仓时，开多规则为：side=buy,tradeSide=open；开空规则为：side=sell,tradeSide=open；平多规则为：side=buy,tradeSide=close；平空规则为：side=sell,tradeSide=close
+         * <a href="https://www.bitget.fit/zh-CN/api-doc/contract/trade/Place-Order">下单</a>
+         **/
+        public ResponseResult<BitgetPlaceOrderResp> placeOrder(String orderNo, String symbol, String size, String side, String tradeSide, String orderType, String marginMode, String presetStopLossPrice) throws IOException {
             Map<String, String> paramMap = Maps.newHashMap();
             //自定义订单id,幂等时间为20分钟
             paramMap.put("clientOid", orderNo);
@@ -199,9 +212,9 @@ public class BitgetCustomService {
 //        if (presetStopSurplusPrice != null && !presetStopSurplusPrice.isEmpty()) {
 //            paramMap.put("presetStopSurplusPrice", presetStopSurplusPrice);
 //        }
-//        if (presetStopLossPrice != null && !presetStopLossPrice.isEmpty()) {
-//            paramMap.put("presetStopLossPrice", presetStopLossPrice);
-//        }
+            if (presetStopLossPrice != null && !presetStopLossPrice.isEmpty()) {
+                paramMap.put("presetStopLossPrice", presetStopLossPrice);
+            }
             Object placeOrder = client.bitget().v2().mixOrder().placeOrder(paramMap);
             return toBean(toJson(placeOrder), ResponseResult.class, BitgetPlaceOrderResp.class);
         }
@@ -689,6 +702,17 @@ public class BitgetCustomService {
             return toBean(toJson(rs), ResponseResult.class, BitgetOrdersPendingResp.class);
         }
 
+        /**
+         * 一键市价平仓
+         * 限速规则: 1次/1s (uid)
+         **/
+        public ResponseResult<BitgetClosePositionsResp> closePositions(String symbol, String productType) throws IOException {
+            Map<String, String> paramMap = Maps.newHashMap();
+            paramMap.put("symbol", symbol);
+            paramMap.put("productType", productType);
+            Object rs = client.bitget().v2().mixOrder().closePositions(paramMap);
+            return toBean(toJson(rs), ResponseResult.class, BitgetClosePositionsResp.class);
+        }
     }
 
 }

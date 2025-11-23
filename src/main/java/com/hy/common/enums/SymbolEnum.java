@@ -8,11 +8,16 @@ import lombok.Getter;
 @Getter
 public enum SymbolEnum {
 
-
     BTCUSDT("BTCUSDT"),
     ETHUSDT("ETHUSDT"),
     SOLUSDT("SOLUSDT"),
-    XRPUSDT("XRPUSDT");
+    XRPUSDT("XRPUSDT"),
+    OPUSDT("OPUSDT"),
+    ARBUSDT("ARBUSDT"),
+    APTUSDT("APTUSDT"),
+    SUIUSDT("SUIUSDT"),
+    LDOUSDT("LDOUSDT"),
+    RPLUSDT("RPLUSDT");
 
     private final String code;
 

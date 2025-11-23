@@ -29,7 +29,7 @@
         <commons-collections4>4.4</commons-collections4>
         <google-guava>33.2.0-jre</google-guava>
         <commons-compress.version>1.26.2</commons-compress.version>
-        <ta4j-core-version>0.18</ta4j-core-version>
+        <ta4j-core-version>0.19</ta4j-core-version>
         <fastjson.version>2.0.57</fastjson.version>
         <jasypt.version>3.0.5</jasypt.version>
     </properties>
@@ -173,6 +173,12 @@
             <groupId>com.github.ulisesbocchio</groupId>
             <artifactId>jasypt-spring-boot-starter</artifactId>
             <version>${jasypt.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math4-core</artifactId>
+            <version>4.0-beta1</version>
         </dependency>
 
     </dependencies>

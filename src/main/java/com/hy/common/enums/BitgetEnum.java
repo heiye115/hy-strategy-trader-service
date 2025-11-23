@@ -11,6 +11,7 @@ import java.time.Duration;
 public enum BitgetEnum {
 
 
+    M1("1m", Duration.ofMinutes(1)),
     M5("5m", Duration.ofMinutes(5)),
     M15("15m", Duration.ofMinutes(15)),
     M30("30m", Duration.ofMinutes(30)),

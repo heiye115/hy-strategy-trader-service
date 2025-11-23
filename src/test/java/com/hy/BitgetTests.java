@@ -25,11 +25,16 @@ class BitgetTests {
     @Value("${bitget.ws-private-url}")
     private String wsPrivateUrl;
 
+    @Value("${spring.mail.password}")
+    private String mailPassword;
+
+
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
     @Test
     public void t1() throws IOException, InterruptedException {
+        System.out.println(mailPassword);
         System.out.println("明文apiKey: ");
         System.out.println("明文passphrase: ");
         System.out.println("明文secretKey: ");

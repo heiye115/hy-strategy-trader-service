@@ -76,4 +76,7 @@ public interface MixOrderApi {
 
     @POST("/api/v2/mix/order/modify-tpsl-order")
     Call<ResponseResult> modifyTpslOrder(@Body Map<String, String> paramMap);
+
+    @POST("/api/v2/mix/order/close-positions")
+    Call<ResponseResult> closePositions(@Body Map<String, String> paramMap);
 }
