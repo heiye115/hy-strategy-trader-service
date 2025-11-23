@@ -630,12 +630,15 @@ public class DoubleMovingAverageStrategyService {
                 boolean strictMATrendConfirmed = isStrictMATrendConfirmed(data);
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;
+                //未实现盈亏
+                BigDecimal unrealizedPL = new BigDecimal(position.getUnrealizedPL());
 
                 for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
-                    //10分钟内不检测趋势变化，避免刚开仓就平仓
-                    long createTime = Long.parseLong(order.getCTime()) + TimeUnit.MINUTES.toMillis(10);
+                    //判断当前
+                    //30分钟内不检测趋势变化，避免刚开仓就平仓
+                    long createTime = Long.parseLong(order.getCTime()) + TimeUnit.MINUTES.toMillis(30);
                     //趋势已变化，直接平仓
-                    if (!strictMATrendConfirmed && System.currentTimeMillis() > createTime) {
+                    if (!strictMATrendConfirmed && System.currentTimeMillis() > createTime && gt(unrealizedPL, BigDecimal.ZERO)) {
                         ResponseResult<BitgetClosePositionsResp> closePositions = bitgetSession.closePositions(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
                         log.info("updateTpslPlans: 趋势已变化，直接平仓, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
                         //发送邮件通知
