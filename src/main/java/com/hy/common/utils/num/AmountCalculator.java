@@ -79,12 +79,12 @@ public class AmountCalculator {
     }
 
     public static void main(String[] args) {
-        BigDecimal principal = new BigDecimal("100");
-        BigDecimal percent = new BigDecimal("1");
+        BigDecimal principal = new BigDecimal("87000");
+        BigDecimal percent = new BigDecimal("0.1");
 
         // 测试 applyChange
         BigDecimal increaseResult = applyChange(principal, percent, ChangeType.INCREASE, 2);
-        BigDecimal decreaseResult = applyChange(principal, percent, ChangeType.DECREASE, 2);
+        BigDecimal decreaseResult = applyChange(principal, percent, ChangeType.DECREASE, 4);
 
         System.out.println("增长 1%: " + increaseResult); // 102.00
         System.out.println("减少 1%: " + decreaseResult); // 98.00

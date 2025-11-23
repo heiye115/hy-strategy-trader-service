@@ -10,6 +10,7 @@ import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
+import com.hy.common.utils.num.AmountCalculator;
 import com.hy.modules.contract.entity.DoubleMovingAverageData;
 import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
 import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
+import static com.hy.common.utils.num.AmountCalculator.applyChange;
 import static com.hy.common.utils.num.AmountCalculator.calculateChangePercent;
 import static com.hy.common.utils.num.BigDecimalUtils.*;
 
@@ -99,6 +101,13 @@ public class DoubleMovingAverageStrategyService {
      * K线数据的数量限制
      **/
     private final static Integer LIMIT = 1000;
+
+    /**
+     * 百分比计算常量
+     **/
+    private final static BigDecimal ONE_PERCENT = BigDecimal.ONE;
+    private final static BigDecimal SPREAD_RATE = new BigDecimal("0.8");
+    private final static BigDecimal PERCENT = new BigDecimal("0.1");
 
     /**
      * 策略配置
@@ -703,15 +712,14 @@ public class DoubleMovingAverageStrategyService {
         if (positionMap == null || positionMap.isEmpty()) return;
         if (entrustedOrdersMap == null || entrustedOrdersMap.isEmpty()) return;
 
-        final BigDecimal ONE_PERCENT = BigDecimal.ONE;
-        final BigDecimal SPREAD_RATE = BigDecimal.valueOf(0.8);
-
         positionMap.forEach((symbol, position) -> {
             try {
                 DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
                 if (config == null) return;
 
                 BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
+                //仓位盈亏平衡价
+                BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
@@ -746,6 +754,9 @@ public class DoubleMovingAverageStrategyService {
                             if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
+                            if (lt(latestPrice, breakEvenPrice)) {
+                                newTriggerPrice = applyChange(newTriggerPrice, PERCENT, AmountCalculator.ChangeType.DECREASE, config.getPricePlace());
+                            }
                             if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, triggerPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
                             }
@@ -755,6 +766,9 @@ public class DoubleMovingAverageStrategyService {
                             BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                             if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
+                            }
+                            if (gt(latestPrice, breakEvenPrice)) {
+                                newTriggerPrice = applyChange(newTriggerPrice, PERCENT, AmountCalculator.ChangeType.INCREASE, config.getPricePlace());
                             }
                             if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
