@@ -418,24 +418,13 @@ public class DoubleMovingAverageStrategyService {
                 while (true) {
                     try {
                         DoubleMovingAveragePlaceOrder orderParam = ORDER_QUEUE.take(); // 阻塞直到有数据
-
                         // 校验当前是否已有仓位
                         if (getAllPosition().containsKey(orderParam.getSymbol())) continue;
-
                         // 校验账户余额
                         if (!validateAccountBalance(orderParam)) continue;
-
-
-                        log.info("startOrderConsumer: 准备下单，订单:{}  ", JsonUtil.toJson(orderParam));
-
                         // 执行下单
                         ResponseResult<BitgetPlaceOrderResp> orderResult = executeOrder(orderParam);
-                        if (orderResult.getData() == null) {
-                            log.error("startOrderConsumer: 下单失败，订单信息: {}, 错误信息: {}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult));
-                            continue;
-                        }
-                        // 处理下单成功后的操作
-                        //handleSuccessfulOrder(orderParam, orderResult.getData());
+                        log.info("startOrderConsumer: 下单完成，订单信息: {}, 返回结果: {}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult));
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         log.warn("startOrderConsumer下单消费者线程被中断，准备退出", e);
