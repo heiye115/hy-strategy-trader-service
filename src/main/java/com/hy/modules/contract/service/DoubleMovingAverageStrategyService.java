@@ -806,7 +806,9 @@ public class DoubleMovingAverageStrategyService {
             param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
             param.setSize("");
             ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetSession.modifyTpslOrder(param);
-            //log.info("modifyStopLossOrder: 修改止盈止损计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
+            if (!BG_RESPONSE_CODE_SUCCESS.equals(result.getCode())) {
+                log.error("modifyStopLossOrder: 修改止盈止损计划失败, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
+            }
         } catch (Exception e) {
             log.error("modifyStopLossOrder-error: 更新止盈止损计划失败, order: {}, newTriggerPrice: {}, error: {}", JsonUtil.toJson(order), newTriggerPrice, e.getMessage());
         }
