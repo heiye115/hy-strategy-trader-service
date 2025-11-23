@@ -68,9 +68,9 @@ public class DoubleMovingAverageStrategyTaskService {
 
     /**
      * 仓位管理
-     * 每两秒秒执行一次
+     * 每秒执行一次
      **/
-    @Scheduled(fixedDelay = 2000)
+    @Scheduled(fixedDelay = 1000)
     public void managePositions() {
         try {
             doubleMovingAverageStrategyService.managePositions();

@@ -1,6 +1,5 @@
 package com.hy.modules.contract.service;
 
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.request.ws.SubscribeReq;
@@ -38,11 +37,11 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
+import static com.hy.common.utils.num.AmountCalculator.calculateChangePercent;
 import static com.hy.common.utils.num.BigDecimalUtils.*;
 
 /****
@@ -608,7 +607,7 @@ public class DoubleMovingAverageStrategyService {
 
             // 获取当前计划止盈止损委托
             Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
-            log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
+            //log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
             updateTpslPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {
@@ -616,59 +615,164 @@ public class DoubleMovingAverageStrategyService {
         }
     }
 
+//    /**
+//     * 动态平仓
+//     * 因暴涨或暴跌导致仓位大幅盈利时，直接平仓离场
+//     **/
+//    public void dynamicClosePositions(Map<String, BitgetAllPositionResp> positionMap) {
+//        try {
+//            for (String symbol : positionMap.keySet()) {
+//                DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
+//                BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
+//                DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
+//                if (latestPrice == null || data == null) return;
+//                boolean strictMATrendConfirmed = isStrictMATrendConfirmed(data);
+//                //趋势已变化，直接平仓
+//                if (!strictMATrendConfirmed) {
+//                    ResponseResult<BitgetClosePositionsResp> closePositions = bitgetSession.closePositions(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
+//                    log.info("dynamicClosePositions: 趋势已变化，直接平仓, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
+//                    //发送邮件通知
+//                    String subject = "双均线策略平仓通知 - 趋势变化";
+//                    String content = String.format("币种: %s 已因趋势变化被平仓。\n最新价格: %s\n时间: %s", symbol, latestPrice.toPlainString(), DateUtil.formatDateTime(new Date()));
+//                    sendEmail(subject, content);
+//                }
+//            }
+//        } catch (Exception e) {
+//            log.error("dynamicClosePositions-error", e);
+//        }
+//    }
+
+//    /**
+//     * 更新止盈止损计划
+//     **/
+//    public void updateTpslPlans2(Map<String, BitgetAllPositionResp> positionMap, Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap) {
+//        if (positionMap.isEmpty() || entrustedOrdersMap.isEmpty()) return;
+//        positionMap.forEach((symbol, position) -> {
+//            try {
+//                DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
+//                BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
+//                DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
+//                if (latestPrice == null || data == null) return;
+//                BigDecimal stopLossPrice = BigDecimal.ZERO;
+//                //如果latestPrice 距离 data.getMa21() 上涨或下跌 超过 1% 则latestPrice和data.getMa21()的差价(减少20%或增加20%)作为止盈价
+//                if (gt(latestPrice, data.getMa21()) && gt(calculateChangePercent(data.getMa21(), latestPrice), BigDecimal.ONE)) {
+//                    BigDecimal spread = latestPrice.subtract(data.getMa21());
+//                    //spread 减少20%
+//                    spread = spread.multiply(BigDecimal.valueOf(0.8)).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+//                    stopLossPrice = data.getMa21().add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+//                }
+//                if (lt(latestPrice, data.getMa21()) && gt(calculateChangePercent(latestPrice, data.getMa21()), BigDecimal.ONE)) {
+//                    BigDecimal spread = data.getMa21().subtract(latestPrice);
+//                    //spread 减少20%
+//                    spread = spread.multiply(BigDecimal.valueOf(0.8)).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+//                    stopLossPrice = data.getMa21().subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+//                }
+//
+//                List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
+//                if (entrustedOrders == null || entrustedOrders.isEmpty()) return;
+//
+//                for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
+//                    BigDecimal triggerPrice = new BigDecimal(order.getTriggerPrice());
+//                    String planType = order.getPlanType();
+//                    String side = order.getSide();
+//                    //止损计划
+//                    if (BG_PLAN_TYPE_LOSS_PLAN.equals(planType)) {
+//                        //做多 sell 卖
+//                        if (BG_SIDE_SELL.equals(side)) {
+//                            BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+//                            if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
+//                                newTriggerPrice = stopLossPrice;
+//                            }
+//                            //现有触发价格与计算出的新触发价格不一致，更新止损计划
+//                            if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, triggerPrice)) {
+//                                modifyStopLossOrder(order, newTriggerPrice);
+//                            }
+//                        }
+//                        //做空 buy 买
+//                        else if (BG_SIDE_BUY.equals(side)) {
+//                            BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+//                            if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
+//                                newTriggerPrice = stopLossPrice;
+//                            }
+//                            //现有触发价格与计算出的新触发价格不一致，更新止损计划
+//                            if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice)) {
+//                                modifyStopLossOrder(order, newTriggerPrice);
+//                            }
+//                        }
+//                    }
+//                }
+//            } catch (Exception e) {
+//                log.error("updateTpslPlans-error", e);
+//            }
+//        });
+//    }
+
     /**
      * 更新止盈止损计划
      **/
     public void updateTpslPlans(Map<String, BitgetAllPositionResp> positionMap, Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap) {
-        if (positionMap.isEmpty() || entrustedOrdersMap.isEmpty()) return;
+        if (positionMap == null || positionMap.isEmpty()) return;
+        if (entrustedOrdersMap == null || entrustedOrdersMap.isEmpty()) return;
+
+        final BigDecimal ONE_PERCENT = BigDecimal.ONE;
+        final BigDecimal SPREAD_RATE = BigDecimal.valueOf(0.8);
+
         positionMap.forEach((symbol, position) -> {
             try {
                 DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
+                if (config == null) return;
+
                 BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
-                boolean strictMATrendConfirmed = isStrictMATrendConfirmed(data);
+
+                // 计算动态止损价（基于 ma21 与 latestPrice）
+                BigDecimal stopLossPrice = BigDecimal.ZERO;
+                BigDecimal ma21 = data.getMa21();
+                if (gt(latestPrice, ma21)) {
+                    BigDecimal change = calculateChangePercent(ma21, latestPrice);
+                    if (gt(change, ONE_PERCENT)) {
+                        BigDecimal spread = latestPrice.subtract(ma21).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        stopLossPrice = ma21.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                    }
+                } else if (lt(latestPrice, ma21)) {
+                    BigDecimal change = calculateChangePercent(latestPrice, ma21);
+                    if (gt(change, ONE_PERCENT)) {
+                        BigDecimal spread = ma21.subtract(latestPrice).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        stopLossPrice = ma21.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                    }
+                }
+
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;
-                //未实现盈亏
-                BigDecimal unrealizedPL = new BigDecimal(position.getUnrealizedPL());
 
                 for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
-                    //判断当前
-                    //30分钟内不检测趋势变化，避免刚开仓就平仓
-                    long createTime = Long.parseLong(order.getCTime()) + TimeUnit.MINUTES.toMillis(30);
-                    //趋势已变化，直接平仓
-                    if (!strictMATrendConfirmed && System.currentTimeMillis() > createTime && gt(unrealizedPL, BigDecimal.ZERO)) {
-                        ResponseResult<BitgetClosePositionsResp> closePositions = bitgetSession.closePositions(symbol, BG_PRODUCT_TYPE_USDT_FUTURES);
-                        log.info("updateTpslPlans: 趋势已变化，直接平仓, symbol: {}, result: {}", symbol, JsonUtil.toJson(closePositions));
-                        //发送邮件通知
-                        String subject = "双均线策略平仓通知 - 趋势变化";
-                        String content = String.format("币种: %s 已因趋势变化被平仓。\n最新价格: %s\n时间: %s", symbol, latestPrice.toPlainString(), DateUtil.formatDateTime(new Date()));
-                        sendEmail(subject, content);
-                        continue;
-                    }
-
-                    BigDecimal triggerPrice = new BigDecimal(order.getTriggerPrice());
-                    String planType = order.getPlanType();
-                    String side = order.getSide();
-                    //止损计划
-                    if (BG_PLAN_TYPE_LOSS_PLAN.equals(planType)) {
+                    try {
+                        if (!BG_PLAN_TYPE_LOSS_PLAN.equals(order.getPlanType())) continue;
+                        BigDecimal triggerPrice = new BigDecimal(Optional.ofNullable(order.getTriggerPrice()).orElse("0"));
+                        String side = order.getSide();
                         //做多 sell 卖
                         if (BG_SIDE_SELL.equals(side)) {
                             BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                            //计算止损触发价格
-                            if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, BigDecimal.ZERO)) {
-                                modifyStopLossOrder(order, newTriggerPrice, null);
+                            if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
+                                newTriggerPrice = stopLossPrice;
+                            }
+                            if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, triggerPrice)) {
+                                modifyStopLossOrder(order, newTriggerPrice);
                             }
                         }
                         //做空 buy 买
                         else if (BG_SIDE_BUY.equals(side)) {
                             BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                            //计算止损触发价格
-                            if (ne(triggerPrice, newTriggerPrice)) {
-                                modifyStopLossOrder(order, newTriggerPrice, null);
+                            if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
+                                newTriggerPrice = stopLossPrice;
+                            }
+                            if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice)) {
+                                modifyStopLossOrder(order, newTriggerPrice);
                             }
                         }
+                    } catch (Exception inner) {
+                        log.error("updateTpslPlans: 单个委托处理失败 symbol={}, orderId={}, error={}", symbol, order.getOrderId(), inner.getMessage());
                     }
                 }
             } catch (Exception e) {
@@ -676,6 +780,7 @@ public class DoubleMovingAverageStrategyService {
             }
         });
     }
+
 
     /**
      * 获取当前计划委托
@@ -690,7 +795,7 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 修改止盈止损计划
      */
-    private void modifyStopLossOrder(BitgetOrdersPlanPendingResp.EntrustedOrder order, BigDecimal newTriggerPrice, BigDecimal newExecutePrice) {
+    private void modifyStopLossOrder(BitgetOrdersPlanPendingResp.EntrustedOrder order, BigDecimal newTriggerPrice) {
         try {
             BitgetModifyTpslOrderParam param = new BitgetModifyTpslOrderParam();
             param.setOrderId(order.getOrderId());
@@ -699,9 +804,6 @@ public class DoubleMovingAverageStrategyService {
             param.setSymbol(order.getSymbol());
             param.setTriggerPrice(newTriggerPrice.toPlainString());
             param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
-            if (newExecutePrice != null) {
-                param.setExecutePrice(newExecutePrice.toPlainString());
-            }
             param.setSize("");
             ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetSession.modifyTpslOrder(param);
             //log.info("modifyStopLossOrder: 修改止盈止损计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(result));
