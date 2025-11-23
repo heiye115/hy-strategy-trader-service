@@ -642,9 +642,8 @@ public class DoubleMovingAverageStrategyService {
                         String subject = "双均线策略平仓通知 - 趋势变化";
                         String content = String.format("币种: %s 已因趋势变化被平仓。\n最新价格: %s\n时间: %s", symbol, latestPrice.toPlainString(), DateUtil.formatDateTime(new Date()));
                         sendEmail(subject, content);
-                        return;
+                        continue;
                     }
-
 
                     BigDecimal triggerPrice = new BigDecimal(order.getTriggerPrice());
                     String planType = order.getPlanType();
