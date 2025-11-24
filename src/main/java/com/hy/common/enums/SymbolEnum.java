@@ -17,7 +17,8 @@ public enum SymbolEnum {
     APTUSDT("APTUSDT"),
     SUIUSDT("SUIUSDT"),
     LDOUSDT("LDOUSDT"),
-    RPLUSDT("RPLUSDT");
+    RPLUSDT("RPLUSDT"),
+    HYPEUSDT("HYPEUSDT");
 
     private final String code;
 

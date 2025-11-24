@@ -114,7 +114,8 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M1.getCode(), 4, 1, 10, BigDecimal.valueOf(10.0)));
+            //put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M1.getCode(), 4, 1, 10, BigDecimal.valueOf(10.0)));
+            put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.M1.getCode(), 2, 3, 20, BigDecimal.valueOf(1.0)));
         }
     };
 
