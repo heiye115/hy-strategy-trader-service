@@ -261,20 +261,16 @@ public class DoubleMovingAverageStrategyService {
     public void signalOrderMonitoring() {
         try {
             if (DMAS_CACHE.isEmpty()) return;
-            DMAS_CACHE.forEach((symbol, averagePr) -> {
+            DMAS_CACHE.forEach((symbol, data) -> {
                 DoubleMovingAverageStrategyConfig conf = CONFIG_MAP.get(symbol);
-                if (!conf.getEnable() ||
-                        !DMAS_CACHE.containsKey(conf.getSymbol()) ||
-                        !BTR_CASHE.containsKey(conf.getSymbol())) {
-                    return;
-                }
+                if (!conf.getEnable() || !BTR_CASHE.containsKey(conf.getSymbol())) return;
+
                 // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
                 AtomicBoolean allowOpen = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) {
                     return;
                 }
 
-                DoubleMovingAverageData data = DMAS_CACHE.get(conf.getSymbol());
                 if (!isStrictMATrendConfirmed(data)) return;
                 BigDecimal latestPrice = BTR_CASHE.get(conf.getSymbol());
                 DoubleMovingAveragePlaceOrder order = null;
