@@ -10,7 +10,6 @@ import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.common.utils.num.AmountCalculator;
 import com.hy.modules.contract.entity.DoubleMovingAverageData;
 import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
 import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
@@ -42,7 +41,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
-import static com.hy.common.utils.num.AmountCalculator.applyChange;
 import static com.hy.common.utils.num.AmountCalculator.calculateChangePercent;
 import static com.hy.common.utils.num.BigDecimalUtils.*;
 
@@ -105,18 +103,17 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 百分比计算常量
      **/
-    private final static BigDecimal ONE_PERCENT = BigDecimal.ONE;
     private final static BigDecimal SPREAD_RATE = new BigDecimal("0.8");
-    private final static BigDecimal PERCENT = new BigDecimal("0.1");
+
 
     /**
      * 策略配置
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            //put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M1.getCode(), 4, 1, 10, BigDecimal.valueOf(10.0)));
-            put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.M1.getCode(), 2, 3, 20, BigDecimal.valueOf(1.0)));
-            put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.M1.getCode(), 3, 2, 20, BigDecimal.valueOf(1.0)));
+            //put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M1.getCode(), 4, 1, 10, BigDecimal.valueOf(10.0),BigDecimal.valueOf(1.0)));
+            put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.M1.getCode(), 2, 3, 20, BigDecimal.valueOf(1.0), BigDecimal.valueOf(2.0)));
+            put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.M1.getCode(), 3, 2, 20, BigDecimal.valueOf(1.0), BigDecimal.valueOf(3.0)));
         }
     };
 
@@ -268,11 +265,14 @@ public class DoubleMovingAverageStrategyService {
             if (DMAS_CACHE.isEmpty()) return;
             DMAS_CACHE.forEach((symbol, averagePr) -> {
                 DoubleMovingAverageStrategyConfig conf = CONFIG_MAP.get(symbol);
-                if (!conf.getEnable() || !DMAS_CACHE.containsKey(conf.getSymbol()) || !BTR_CASHE.containsKey(conf.getSymbol())) {
+                if (!conf.getEnable() ||
+                        !DMAS_CACHE.containsKey(conf.getSymbol()) ||
+                        !BTR_CASHE.containsKey(conf.getSymbol())) {
                     return;
                 }
-                // 1. 仓位状态检查（必须允许开单）
-                if (!allowOpenByPosition.getOrDefault(symbol, new AtomicBoolean(false)).get()) {
+                // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
+                AtomicBoolean allowOpen = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
+                if (!allowOpen.get()) {
                     return;
                 }
 
@@ -301,10 +301,19 @@ public class DoubleMovingAverageStrategyService {
                     }
                 }
                 if (order != null && tryAcquireOpenLock(symbol)) {
-                    //提前锁死，防止因交易所延迟导致重复开单
-                    allowOpenByPosition.put(symbol, new AtomicBoolean(false));
+                    // 获取用于写入的 allowOpen 对象（如果之前不存在，则认为允许开单）
+                    AtomicBoolean allowOpenForSet = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(true));
                     if (ORDER_QUEUE.offer(order)) {
+                        // 成功入队后再禁止该 symbol 继续开单
+                        allowOpenForSet.set(false);
                         log.info("signalOrderMonitoring:检测到双均线交易信号，已放入下单队列，order:{}", JsonUtil.toJson(order));
+                    } else {
+                        // 入队失败，立即释放开单锁，允许快速重试
+                        AtomicBoolean lock = openLockMap.get(symbol);
+                        if (lock != null) {
+                            lock.set(true);
+                        }
+                        log.warn("signalOrderMonitoring: 下单队列已满，放入失败，symbol={}", symbol);
                     }
                 }
             });
@@ -312,6 +321,7 @@ public class DoubleMovingAverageStrategyService {
             log.error("signalOrderMonitoring-error", e);
         }
     }
+
 
     /**
      * 获取开仓锁
@@ -721,7 +731,7 @@ public class DoubleMovingAverageStrategyService {
 
                 BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
                 //仓位盈亏平衡价
-                BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                //BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
@@ -730,13 +740,13 @@ public class DoubleMovingAverageStrategyService {
                 BigDecimal ma21 = data.getMa21();
                 if (gt(latestPrice, ma21)) {
                     BigDecimal change = calculateChangePercent(ma21, latestPrice);
-                    if (gt(change, ONE_PERCENT)) {
+                    if (gt(change, config.getDeviationFromMA21())) {
                         BigDecimal spread = latestPrice.subtract(ma21).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                         stopLossPrice = ma21.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
                 } else if (lt(latestPrice, ma21)) {
                     BigDecimal change = calculateChangePercent(latestPrice, ma21);
-                    if (gt(change, ONE_PERCENT)) {
+                    if (gt(change, config.getDeviationFromMA21())) {
                         BigDecimal spread = ma21.subtract(latestPrice).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                         stopLossPrice = ma21.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
@@ -756,9 +766,6 @@ public class DoubleMovingAverageStrategyService {
                             if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
-                            if (lt(latestPrice, breakEvenPrice)) {
-                                newTriggerPrice = applyChange(newTriggerPrice, PERCENT, AmountCalculator.ChangeType.DECREASE, config.getPricePlace());
-                            }
                             if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, triggerPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
                             }
@@ -768,9 +775,6 @@ public class DoubleMovingAverageStrategyService {
                             BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                             if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
-                            }
-                            if (gt(latestPrice, breakEvenPrice)) {
-                                newTriggerPrice = applyChange(newTriggerPrice, PERCENT, AmountCalculator.ChangeType.INCREASE, config.getPricePlace());
                             }
                             if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
