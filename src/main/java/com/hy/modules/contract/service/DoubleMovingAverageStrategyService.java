@@ -617,7 +617,7 @@ public class DoubleMovingAverageStrategyService {
 
             // 获取当前计划止盈止损委托
             Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
-            //log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
+            log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
             updateTpslPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {
@@ -731,7 +731,7 @@ public class DoubleMovingAverageStrategyService {
 
                 BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
                 //仓位盈亏平衡价
-                //BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
@@ -762,7 +762,11 @@ public class DoubleMovingAverageStrategyService {
                         String side = order.getSide();
                         //做多 sell 卖
                         if (BG_SIDE_SELL.equals(side)) {
-                            BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
+                            BigDecimal ma144Price = (gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                            if (gt(ma144Price, breakEvenPrice)) {
+                                newTriggerPrice = ma144Price;
+                            }
                             if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
@@ -772,11 +776,15 @@ public class DoubleMovingAverageStrategyService {
                         }
                         //做空 buy 买
                         else if (BG_SIDE_BUY.equals(side)) {
-                            BigDecimal newTriggerPrice = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
+                            BigDecimal ma144Price = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                            if (lt(ma144Price, breakEvenPrice)) {
+                                newTriggerPrice = ma144Price;
+                            }
                             if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
-                            if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice)) {
+                            if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice) && gt(newTriggerPrice, BigDecimal.ZERO)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
                             }
                         }
