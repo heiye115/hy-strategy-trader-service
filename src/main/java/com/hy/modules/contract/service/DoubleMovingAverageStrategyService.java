@@ -116,6 +116,7 @@ public class DoubleMovingAverageStrategyService {
         {
             //put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M1.getCode(), 4, 1, 10, BigDecimal.valueOf(10.0)));
             put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.M1.getCode(), 2, 3, 20, BigDecimal.valueOf(1.0)));
+            put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.M1.getCode(), 3, 2, 20, BigDecimal.valueOf(1.0)));
         }
     };
 
