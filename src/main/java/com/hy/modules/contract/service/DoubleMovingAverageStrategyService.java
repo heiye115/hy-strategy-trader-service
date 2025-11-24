@@ -111,9 +111,8 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M1.getCode(), 4, 1, 100, BigDecimal.valueOf(1.0), BigDecimal.valueOf(1.0)));
-            put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.M1.getCode(), 2, 3, 20, BigDecimal.valueOf(1.0), BigDecimal.valueOf(2.0)));
-            put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.M1.getCode(), 3, 2, 20, BigDecimal.valueOf(1.0), BigDecimal.valueOf(3.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H4.getCode(), 4, 1, 5, BigDecimal.valueOf(50.0), BigDecimal.valueOf(6.0)));
+            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 3, BigDecimal.valueOf(50.0), BigDecimal.valueOf(10.0)));
         }
     };
 
@@ -229,7 +228,6 @@ public class DoubleMovingAverageStrategyService {
                 try {
                     ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, config.getTimeFrame(), LIMIT);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
-                    if (rs.getData().size() < LIMIT) return;
                     BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(config.getTimeFrame())).getDuration());
                     DoubleMovingAverageData data = calculateIndicators(barSeries);
                     DMAS_CACHE.put(config.getSymbol(), data);
@@ -282,22 +280,23 @@ public class DoubleMovingAverageStrategyService {
                 DoubleMovingAveragePlaceOrder order = null;
                 //多空判断
                 if (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144())) {
-                    BigDecimal upPriceRange = gt(data.getMa21(), data.getEma21()) ? data.getEma21() : data.getMa21();
-                    BigDecimal downPriceRange = gt(data.getMa55(), data.getEma55()) ? data.getMa55() : data.getEma55();
-                    BigDecimal presetStopLossPrice = gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144();
-                    //判断 latestPrice 是否在 [downPriceRange, upPriceRange] 范围内
-                    if (gte(latestPrice, downPriceRange) && lte(latestPrice, upPriceRange)) {
+                    BigDecimal upPriceRange = gt(data.getMa21(), data.getEma21()) ? data.getMa21() : data.getEma21();
+                    BigDecimal downPriceRange = gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144();
+                    //中间价 = downPriceRange+(upPriceRange-downPriceRange)/2
+                    BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
+                    //判断 latestPrice 是否小于 medianPrice
+                    if (lte(latestPrice, medianPrice)) {
                         //符合多头开多条件，预处理下单信息
-                        order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, presetStopLossPrice);
+                        order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, downPriceRange);
                     }
                 } else if (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144())) {
-                    BigDecimal downPriceRange = lt(data.getMa21(), data.getEma21()) ? data.getEma21() : data.getMa21();
-                    BigDecimal upPriceRange = lt(data.getMa55(), data.getEma55()) ? data.getMa55() : data.getEma55();
-                    BigDecimal presetStopLossPrice = lt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144();
-                    //判断 latestPrice 是否在 [downPriceRange, upPriceRange] 范围内
-                    if (gte(latestPrice, downPriceRange) && lte(latestPrice, upPriceRange)) {
+                    BigDecimal downPriceRange = lt(data.getMa21(), data.getEma21()) ? data.getMa21() : data.getEma21();
+                    BigDecimal upPriceRange = lt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144();
+                    BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
+                    //判断 latestPrice 是否大于 medianPrice
+                    if (gte(latestPrice, medianPrice)) {
                         //符合空头开空条件，预处理下单信息
-                        order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, presetStopLossPrice);
+                        order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, upPriceRange);
                     }
                 }
                 if (order != null && tryAcquireOpenLock(symbol)) {
@@ -485,8 +484,8 @@ public class DoubleMovingAverageStrategyService {
         for (BitgetMixMarketCandlesResp candle : candles) {
             Bar bar = new BaseBar(
                     candleDuration,
-                    null,
                     Instant.ofEpochMilli(candle.getTimestamp()),
+                    null,
                     series.numFactory().numOf(candle.getOpenPrice()),
                     series.numFactory().numOf(candle.getHighPrice()),
                     series.numFactory().numOf(candle.getLowPrice()),
@@ -539,36 +538,6 @@ public class DoubleMovingAverageStrategyService {
             log.error("getAccountInfo-error", e);
         }
         return new ConcurrentHashMap<>();
-    }
-
-
-    /**
-     * 设置止盈止损委托计划
-     **/
-    public void setPlaceTpslOrder(String symbol, String triggerPrice, String executePrice, String size, String holdSide, String planType) {
-        BitgetPlaceTpslOrderParam param = new BitgetPlaceTpslOrderParam();
-        param.setClientOid(IdUtil.getSnowflakeNextIdStr());
-        param.setMarginCoin(DEFAULT_CURRENCY_USDT);
-        param.setProductType(BG_PRODUCT_TYPE_USDT_FUTURES);
-        param.setSymbol(symbol);
-        /*止盈止损类型 profit_plan：止盈计划  pos_loss：仓位止损*/
-        param.setPlanType(planType);
-        /*触发类型 市场价格*/
-        param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
-        param.setTriggerPrice(triggerPrice);
-        param.setExecutePrice(executePrice);
-        param.setSize(size);
-        param.setHoldSide(holdSide);
-        try {
-            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetSession.placeTpslOrder(param);
-            if (rs == null || !BG_RESPONSE_CODE_SUCCESS.equals(rs.getCode())) {
-                log.error("setPlaceTpslOrder: 设置止盈止损委托计划失败, param: {}", JsonUtil.toJson(param));
-                return;
-            }
-            log.info("setPlaceTpslOrder: 设置止盈止损委托计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(rs));
-        } catch (Exception e) {
-            log.error("setPlaceTpslOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", JsonUtil.toJson(param), e.getMessage());
-        }
     }
 
 

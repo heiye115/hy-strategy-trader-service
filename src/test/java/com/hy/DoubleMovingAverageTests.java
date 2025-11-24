@@ -15,4 +15,9 @@ public class DoubleMovingAverageTests {
     public void test1() {
         doubleMovingAverageStrategyService.managePositions();
     }
+
+    @Test
+    public void test2() {
+        doubleMovingAverageStrategyService.managePositions();
+    }
 }
