@@ -617,7 +617,7 @@ public class DoubleMovingAverageStrategyService {
 
             // 获取当前计划止盈止损委托
             Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
-            log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
+            //log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
             updateTpslPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {
