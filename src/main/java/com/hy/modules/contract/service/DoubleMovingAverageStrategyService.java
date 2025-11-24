@@ -111,8 +111,8 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H4.getCode(), 4, 1, 5, BigDecimal.valueOf(50.0), BigDecimal.valueOf(6.0)));
-            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 3, BigDecimal.valueOf(50.0), BigDecimal.valueOf(10.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H4.getCode(), 4, 1, 5, BigDecimal.valueOf(50.0), BigDecimal.valueOf(10.0)));
+            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 3, BigDecimal.valueOf(50.0), BigDecimal.valueOf(20.0)));
         }
     };
 
@@ -704,20 +704,20 @@ public class DoubleMovingAverageStrategyService {
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
-                // 计算动态止损价（基于 ma21 与 latestPrice）
+                // 计算动态止损价（基于 ma144 与 latestPrice）
                 BigDecimal stopLossPrice = BigDecimal.ZERO;
-                BigDecimal ma21 = data.getMa21();
-                if (gt(latestPrice, ma21)) {
-                    BigDecimal change = calculateChangePercent(ma21, latestPrice);
-                    if (gt(change, config.getDeviationFromMA21())) {
-                        BigDecimal spread = latestPrice.subtract(ma21).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                        stopLossPrice = ma21.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                BigDecimal ma144 = data.getMa144();
+                if (gt(latestPrice, ma144)) {
+                    BigDecimal change = calculateChangePercent(ma144, latestPrice);
+                    if (gt(change, config.getDeviationFromMA144())) {
+                        BigDecimal spread = latestPrice.subtract(ma144).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        stopLossPrice = ma144.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
-                } else if (lt(latestPrice, ma21)) {
-                    BigDecimal change = calculateChangePercent(latestPrice, ma21);
-                    if (gt(change, config.getDeviationFromMA21())) {
-                        BigDecimal spread = ma21.subtract(latestPrice).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                        stopLossPrice = ma21.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                } else if (lt(latestPrice, ma144)) {
+                    BigDecimal change = calculateChangePercent(latestPrice, ma144);
+                    if (gt(change, config.getDeviationFromMA144())) {
+                        BigDecimal spread = ma144.subtract(latestPrice).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        stopLossPrice = ma144.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
                 }
 
