@@ -23,15 +23,16 @@ public class DoubleMovingAverageStrategyTaskService {
      */
     @PostConstruct
     public void init() {
+        //启动时执行一次
+        doubleMovingAverageDataMonitoring();
         doubleMovingAverageStrategyService.init();
     }
 
     /**
      * 双均线数据监控
-     * 每分钟执行一次
-     * 即使上次没执行完，调度器也会按时间启动新任务（可能重叠）
+     * 每小时的第 1 分钟执行一次
      **/
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(cron = "0 1 * * * ?")
     public void doubleMovingAverageDataMonitoring() {
         try {
             doubleMovingAverageStrategyService.doubleMovingAverageDataMonitoring();
@@ -54,10 +55,10 @@ public class DoubleMovingAverageStrategyTaskService {
 
     /**
      * 双均线策略信号下单监控
-     * 每1000毫秒执行一次
+     * 每500毫秒执行一次
      * 即使上次没执行完，调度器也会按时间启动新任务（可能重叠）
      **/
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedRate = 500)
     public void signalOrderMonitoring() {
         try {
             doubleMovingAverageStrategyService.signalOrderMonitoring();

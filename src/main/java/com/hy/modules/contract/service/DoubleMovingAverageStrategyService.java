@@ -227,6 +227,7 @@ public class DoubleMovingAverageStrategyService {
                 try {
                     ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, config.getTimeFrame(), LIMIT);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
+                    if (rs.getData().size() < 500) return;
                     BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(config.getTimeFrame())).getDuration());
                     DoubleMovingAverageData data = calculateIndicators(barSeries);
                     DMAS_CACHE.put(config.getSymbol(), data);
@@ -268,14 +269,13 @@ public class DoubleMovingAverageStrategyService {
                 AtomicBoolean allowOpen = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) return;
 
-
                 if (!isStrictMATrendConfirmed(data)) return;
                 BigDecimal latestPrice = BTR_CASHE.get(conf.getSymbol());
                 DoubleMovingAveragePlaceOrder order = null;
                 //多空判断
                 if (gt(latestPrice, data.getMa144()) && gt(latestPrice, data.getEma144()) && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()))) {
-                    BigDecimal upPriceRange = gt(data.getMa21(), data.getEma21()) ? data.getMa21() : data.getEma21();
-                    BigDecimal downPriceRange = gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144();
+                    BigDecimal upPriceRange = data.getMaxValue();
+                    BigDecimal downPriceRange = data.getMinValue();
                     //中间价区间
                     BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
                     BigDecimal medianPriceDecrease = AmountCalculator.decrease(medianPrice, BigDecimal.valueOf(0.2), conf.getPricePlace());
@@ -285,8 +285,8 @@ public class DoubleMovingAverageStrategyService {
                         order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, downPriceRange);
                     }
                 } else if (lt(latestPrice, data.getMa144()) && lt(latestPrice, data.getEma144()) && (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144()))) {
-                    BigDecimal downPriceRange = lt(data.getMa21(), data.getEma21()) ? data.getMa21() : data.getEma21();
-                    BigDecimal upPriceRange = lt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144();
+                    BigDecimal downPriceRange = data.getMinValue();
+                    BigDecimal upPriceRange = data.getMaxValue();
                     //中间价区间
                     BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
                     BigDecimal medianPriceIncrease = AmountCalculator.increase(medianPrice, BigDecimal.valueOf(0.2), conf.getPricePlace());
@@ -611,24 +611,22 @@ public class DoubleMovingAverageStrategyService {
                 if (config == null) return;
 
                 BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
-                //仓位盈亏平衡价
-                BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
-                // 计算动态止损价（基于 ma144 与 latestPrice）
+                // 计算动态止赢价（基于 ma144 与 latestPrice）
                 BigDecimal stopLossPrice = BigDecimal.ZERO;
                 BigDecimal ma144 = data.getMa144();
                 if (gt(latestPrice, ma144)) {
                     BigDecimal change = calculateChangePercent(ma144, latestPrice);
                     if (gt(change, config.getDeviationFromMA144())) {
-                        BigDecimal spread = latestPrice.subtract(ma144).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        BigDecimal spread = latestPrice.subtract(ma144).multiply(SPREAD_RATE);
                         stopLossPrice = ma144.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
                 } else if (lt(latestPrice, ma144)) {
                     BigDecimal change = calculateChangePercent(latestPrice, ma144);
                     if (gt(change, config.getDeviationFromMA144())) {
-                        BigDecimal spread = ma144.subtract(latestPrice).multiply(SPREAD_RATE).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                        BigDecimal spread = ma144.subtract(latestPrice).multiply(SPREAD_RATE);
                         stopLossPrice = ma144.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
                 }
@@ -643,11 +641,7 @@ public class DoubleMovingAverageStrategyService {
                         String side = order.getSide();
                         //做多 sell 卖
                         if (BG_SIDE_SELL.equals(side)) {
-                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
-                            BigDecimal ma144Price = (gt(data.getMa144(), data.getEma144()) ? data.getEma144() : data.getMa144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                            if (gt(ma144Price, breakEvenPrice)) {
-                                newTriggerPrice = ma144Price;
-                            }
+                            BigDecimal newTriggerPrice = data.getMin144Value();
                             if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
@@ -657,11 +651,7 @@ public class DoubleMovingAverageStrategyService {
                         }
                         //做空 buy 买
                         else if (BG_SIDE_BUY.equals(side)) {
-                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
-                            BigDecimal ma144Price = (gt(data.getMa144(), data.getEma144()) ? data.getMa144() : data.getEma144()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                            if (lt(ma144Price, breakEvenPrice)) {
-                                newTriggerPrice = ma144Price;
-                            }
+                            BigDecimal newTriggerPrice = data.getMax144Value();
                             if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }

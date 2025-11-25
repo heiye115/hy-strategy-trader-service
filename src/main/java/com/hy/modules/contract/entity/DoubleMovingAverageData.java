@@ -48,4 +48,33 @@ public class DoubleMovingAverageData {
         this.ema55 = ema55;
         this.ema144 = ema144;
     }
+
+    /**
+     * 获取最高价
+     **/
+    public BigDecimal getMaxValue() {
+        return ma21.max(ma55).max(ma144).max(ema21).max(ema55).max(ema144);
+    }
+
+    /**
+     * 获取最低价
+     **/
+    public BigDecimal getMinValue() {
+        return ma21.min(ma55).min(ma144).min(ema21).min(ema55).min(ema144);
+    }
+
+    /**
+     * 获取144最高价
+     **/
+    public BigDecimal getMax144Value() {
+        return ma144.max(ema144);
+    }
+
+    /**
+     * 获取144最低价
+     **/
+    public BigDecimal getMin144Value() {
+        return ma144.min(ema144);
+    }
+
 }
