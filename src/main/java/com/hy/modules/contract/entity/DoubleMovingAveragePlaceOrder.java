@@ -74,4 +74,8 @@ public class DoubleMovingAveragePlaceOrder {
      **/
     private BigDecimal accountBalance;
 
+    /**
+     * 杠杆倍数
+     **/
+    private Integer leverage;
 }

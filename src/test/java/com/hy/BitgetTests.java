@@ -58,7 +58,7 @@ class BitgetTests {
     }
 
     public static void main(String[] args) {
-
+        System.out.println(Double.toString(0.995));
     }
 
 }

@@ -68,6 +68,30 @@ public class NumUtil {
         return originalValue.multiply(factor).setScale(4, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 根据涨跌幅计算可开最大杠杆  例如 5.0%  最大可以开杠杆是20 方法返回20整数 , 不要带有小数, 向下取整
+     **/
+    public static int calculateMaxLeverage(BigDecimal percentage) {
+        if (percentage.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Percentage must be greater than zero.");
+        }
+        BigDecimal hundred = new BigDecimal("98");
+        BigDecimal leverage = hundred.divide(percentage, 0, RoundingMode.DOWN);
+        //如果杠杆小于1 则返回1
+        if (leverage.compareTo(BigDecimal.ONE) < 0) {
+            return 1;
+        }
+        return leverage.intValue();
+    }
+
+    /**
+     * 计算交易所最大可开杠杆 如果calculateMaxLeverage返回大于交易所最大可开杠杆 则返回交易所最大杠杆, 否则返回calculateMaxLeverage的杠杆
+     **/
+    public static int calculateExchangeMaxLeverage(BigDecimal percentage, Integer exchangeMaxLeverage) {
+        int calculatedLeverage = calculateMaxLeverage(percentage);
+        return Math.min(calculatedLeverage, exchangeMaxLeverage);
+    }
+
     public static void main(String[] args) {
         BigDecimal originalValue = new BigDecimal("100");
         BigDecimal percentageIncrease = new BigDecimal("2.5");
@@ -81,7 +105,8 @@ public class NumUtil {
         System.out.println("Value after 2.5% increase: " + increasedValue);
         System.out.println("Value after 2.5% decrease: " + decreasedValue);
         System.out.println(calculate(originalValue, new BigDecimal("0")));
-
+        System.out.println(calculateMaxLeverage(BigDecimal.valueOf(1)));
+        System.out.println(calculateExchangeMaxLeverage(BigDecimal.valueOf(1), 50));
 
     }
 

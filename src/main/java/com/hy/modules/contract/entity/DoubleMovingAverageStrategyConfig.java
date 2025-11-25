@@ -42,9 +42,9 @@ public class DoubleMovingAverageStrategyConfig {
     private Integer pricePlace;
 
     /**
-     * 杠杆倍数
+     * 交易所最大杠杆倍数
      */
-    private Integer leverage;
+    private Integer maxLeverage;
 
     /**
      * 开仓金额
@@ -57,13 +57,13 @@ public class DoubleMovingAverageStrategyConfig {
      **/
     private BigDecimal deviationFromMA144;
 
-    public DoubleMovingAverageStrategyConfig(Boolean enable, String symbol, String timeFrame, Integer volumePlace, Integer pricePlace, Integer leverage, BigDecimal openAmount, BigDecimal deviationFromMA144) {
+    public DoubleMovingAverageStrategyConfig(Boolean enable, String symbol, String timeFrame, Integer volumePlace, Integer pricePlace, Integer maxLeverage, BigDecimal openAmount, BigDecimal deviationFromMA144) {
         this.enable = enable;
         this.symbol = symbol;
         this.timeFrame = timeFrame;
         this.volumePlace = volumePlace;
         this.pricePlace = pricePlace;
-        this.leverage = leverage;
+        this.maxLeverage = maxLeverage;
         this.openAmount = openAmount;
         this.deviationFromMA144 = deviationFromMA144;
     }
