@@ -626,7 +626,7 @@ public class DoubleMovingAverageStrategyService {
                         stopLossPrice = ma144.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                     }
                 } else if (lt(latestPrice, ma144)) {
-                    BigDecimal change = calculateChangePercent(latestPrice, ma144);
+                    BigDecimal change = calculateChangePercent(ma144, latestPrice).abs();
                     if (gt(change, config.getDeviationFromMA144())) {
                         BigDecimal spread = ma144.subtract(latestPrice).multiply(SPREAD_RATE);
                         stopLossPrice = ma144.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
