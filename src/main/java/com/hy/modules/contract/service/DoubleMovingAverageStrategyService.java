@@ -116,7 +116,8 @@ public class DoubleMovingAverageStrategyService {
             put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H4.getCode(), 4, 1, 150, BigDecimal.valueOf(10.0), BigDecimal.valueOf(10.0)));
             put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 150, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
-            put(SymbolEnum.XRPUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.XRPUSDT.getCode(), BitgetEnum.H4.getCode(), 0, 4, 125, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
+            put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(30.0)));
+            put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(30.0)));
         }
     };
 
