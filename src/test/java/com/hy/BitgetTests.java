@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 
 @SpringBootTest
 class BitgetTests {
@@ -59,6 +60,8 @@ class BitgetTests {
 
     public static void main(String[] args) {
         System.out.println(Double.toString(0.995));
+        BigDecimal SPREAD_RATE = new BigDecimal("0.8");
+        System.out.println(SPREAD_RATE.add(BigDecimal.valueOf(0.21)).min(BigDecimal.ONE));
     }
 
 }

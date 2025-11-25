@@ -617,20 +617,21 @@ public class DoubleMovingAverageStrategyService {
                 BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
 
                 // 计算动态止赢价（基于 ma144 与 latestPrice）
-                BigDecimal stopLossPrice = BigDecimal.ZERO;
+                BigDecimal stopProfitPrice = BigDecimal.ZERO;
                 BigDecimal ma144 = data.getMa144();
-                if (gt(latestPrice, ma144)) {
-                    BigDecimal change = calculateChangePercent(ma144, latestPrice);
-                    if (gt(change, config.getDeviationFromMA144())) {
-                        BigDecimal spread = latestPrice.subtract(ma144).multiply(SPREAD_RATE);
-                        stopLossPrice = ma144.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                    }
-                } else if (lt(latestPrice, ma144)) {
-                    BigDecimal change = calculateChangePercent(ma144, latestPrice).abs();
-                    if (gt(change, config.getDeviationFromMA144())) {
-                        BigDecimal spread = ma144.subtract(latestPrice).multiply(SPREAD_RATE);
-                        stopLossPrice = ma144.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                    }
+                //计算涨跌幅百分比
+                BigDecimal change = calculateChangePercent(ma144, latestPrice).abs();
+                boolean isStopProfit = gt(change, config.getDeviationFromMA144());
+                BigDecimal coefficient = SPREAD_RATE;
+                if (isStopProfit) {
+                    coefficient = coefficient.add(change.subtract(config.getDeviationFromMA144()).multiply(BigDecimal.valueOf(0.01))).min(BigDecimal.ONE);
+                }
+                if (gt(latestPrice, ma144) && isStopProfit) {
+                    BigDecimal spread = latestPrice.subtract(ma144).multiply(coefficient);
+                    stopProfitPrice = ma144.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+                } else if (lt(latestPrice, ma144) && isStopProfit) {
+                    BigDecimal spread = ma144.subtract(latestPrice).multiply(coefficient);
+                    stopProfitPrice = ma144.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
                 }
 
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
@@ -647,8 +648,8 @@ public class DoubleMovingAverageStrategyService {
                             if (gt(data.getMin144Value(), breakEvenPrice)) {
                                 newTriggerPrice = data.getMin144Value();
                             }
-                            if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
-                                newTriggerPrice = stopLossPrice;
+                            if (gt(stopProfitPrice, BigDecimal.ZERO) && lt(triggerPrice, stopProfitPrice) && gt(stopProfitPrice, newTriggerPrice)) {
+                                newTriggerPrice = stopProfitPrice;
                             }
                             if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, triggerPrice)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
@@ -660,8 +661,8 @@ public class DoubleMovingAverageStrategyService {
                             if (lt(data.getMax144Value(), breakEvenPrice)) {
                                 newTriggerPrice = data.getMax144Value();
                             }
-                            if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
-                                newTriggerPrice = stopLossPrice;
+                            if (gt(stopProfitPrice, BigDecimal.ZERO) && gt(triggerPrice, stopProfitPrice) && lt(stopProfitPrice, newTriggerPrice)) {
+                                newTriggerPrice = stopProfitPrice;
                             }
                             if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice) && gt(newTriggerPrice, BigDecimal.ZERO)) {
                                 modifyStopLossOrder(order, newTriggerPrice);
