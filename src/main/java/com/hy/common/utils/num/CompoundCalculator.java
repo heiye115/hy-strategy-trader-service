@@ -155,9 +155,9 @@ public class CompoundCalculator {
             System.out.println(row.round + "," + row.position + "," + row.margin + "," + row.total);
         }
 //
-        BigDecimal current1 = new BigDecimal("671.62");
+        BigDecimal current1 = new BigDecimal("200");
 //        System.out.println(JsonUtil.toJson(matchByTotal(current1, rows)));
         CompoundRow plan = getCompoundPlan(current1);
-        //System.out.println("当前总金额=" + current1 + "，对应计划：" + plan);
+        System.out.println("当前总金额=" + current1 + "，对应计划：" + plan);
     }
 }

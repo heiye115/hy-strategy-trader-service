@@ -613,6 +613,8 @@ public class DoubleMovingAverageStrategyService {
                 BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
+                //仓位盈亏平衡价
+                BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
 
                 // 计算动态止赢价（基于 ma144 与 latestPrice）
                 BigDecimal stopLossPrice = BigDecimal.ZERO;
@@ -641,7 +643,10 @@ public class DoubleMovingAverageStrategyService {
                         String side = order.getSide();
                         //做多 sell 卖
                         if (BG_SIDE_SELL.equals(side)) {
-                            BigDecimal newTriggerPrice = data.getMin144Value();
+                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
+                            if (gt(data.getMin144Value(), breakEvenPrice)) {
+                                newTriggerPrice = data.getMin144Value();
+                            }
                             if (gt(stopLossPrice, BigDecimal.ZERO) && lt(triggerPrice, stopLossPrice) && gt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
@@ -651,7 +656,10 @@ public class DoubleMovingAverageStrategyService {
                         }
                         //做空 buy 买
                         else if (BG_SIDE_BUY.equals(side)) {
-                            BigDecimal newTriggerPrice = data.getMax144Value();
+                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
+                            if (lt(data.getMax144Value(), breakEvenPrice)) {
+                                newTriggerPrice = data.getMax144Value();
+                            }
                             if (gt(stopLossPrice, BigDecimal.ZERO) && gt(triggerPrice, stopLossPrice) && lt(stopLossPrice, newTriggerPrice)) {
                                 newTriggerPrice = stopLossPrice;
                             }
