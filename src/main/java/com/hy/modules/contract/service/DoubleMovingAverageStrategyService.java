@@ -172,7 +172,7 @@ public class DoubleMovingAverageStrategyService {
                 // 设置保证金模式为逐仓
                 setMarginModeForSymbol(config);
                 // 设置杠杆倍数 默认1倍
-                setLeverageForSymbol(config.getSymbol(), 1);
+                //setLeverageForSymbol(config.getSymbol(), 1);
             }
             // 设置持仓模式为单向持仓
             setPositionMode();
