@@ -278,7 +278,7 @@ public class DoubleMovingAverageStrategyService {
                     BigDecimal downPriceRange = data.getMinValue();
                     //中间价区间
                     BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
-                    BigDecimal medianPriceDecrease = AmountCalculator.decrease(medianPrice, BigDecimal.valueOf(0.2), conf.getPricePlace());
+                    BigDecimal medianPriceDecrease = AmountCalculator.decrease(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
                     //判断 latestPrice 是否在 medianPrice ,medianPriceDecrease 之间
                     if (gte(latestPrice, medianPriceDecrease) && lt(latestPrice, medianPrice)) {
                         //符合多头开多条件，预处理下单信息
@@ -289,7 +289,7 @@ public class DoubleMovingAverageStrategyService {
                     BigDecimal upPriceRange = data.getMaxValue();
                     //中间价区间
                     BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
-                    BigDecimal medianPriceIncrease = AmountCalculator.increase(medianPrice, BigDecimal.valueOf(0.2), conf.getPricePlace());
+                    BigDecimal medianPriceIncrease = AmountCalculator.increase(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
                     //判断 latestPrice 是否在 medianPriceIncrease ,medianPrice 之间
                     if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceIncrease)) {
                         //符合空头开空条件，预处理下单信息

@@ -41,7 +41,7 @@ public class DoubleMovingAverageTests {
     @Test
     public void test3() throws IOException {
         BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
-        String symbol = "ZECUSDT";
+        String symbol = "HYPEUSDT";
         String timeFrame = "4H";
         ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, timeFrame, 1000);
         if (rs.getData() == null || rs.getData().isEmpty()) return;
