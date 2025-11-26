@@ -19,7 +19,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.*;
@@ -84,7 +83,7 @@ public class DoubleMovingAverageStrategyService {
     /**
      * Bitget行情数据缓存
      **/
-    private final static Map<String, BigDecimal> BTR_CASHE = new ConcurrentHashMap<>();
+    private final static Map<String, BigDecimal> BTR_CACHE = new ConcurrentHashMap<>();
 
     /**
      * 订单队列 - 存储待执行的订单参数
@@ -140,7 +139,7 @@ public class DoubleMovingAverageStrategyService {
     private String emailRecipient;
 
 
-    public DoubleMovingAverageStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, StringRedisTemplate redisTemplate, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler) {
+    public DoubleMovingAverageStrategyService(BitgetCustomService bitgetCustomService, MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler) {
         this.bitgetCustomService = bitgetCustomService;
         this.bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
         this.mailService = mailService;
@@ -247,7 +246,7 @@ public class DoubleMovingAverageStrategyService {
                 try {
                     ResponseResult<List<BitgetMixMarketTickerResp>> rs = bitgetSession.getMixMarketTicker(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
-                    BTR_CASHE.put(config.getSymbol(), new BigDecimal(rs.getData().getFirst().getLastPr()));
+                    BTR_CACHE.put(config.getSymbol(), new BigDecimal(rs.getData().getFirst().getLastPr()));
                 } catch (Exception e) {
                     log.error("marketDataMonitoring-error:{}", config.getSymbol(), e);
                 }
@@ -260,17 +259,17 @@ public class DoubleMovingAverageStrategyService {
      */
     public void signalOrderMonitoring() {
         try {
-            if (DMAS_CACHE.isEmpty() || BTR_CASHE.isEmpty()) return;
+            if (DMAS_CACHE.isEmpty() || BTR_CACHE.isEmpty()) return;
             DMAS_CACHE.forEach((symbol, data) -> {
                 DoubleMovingAverageStrategyConfig conf = CONFIG_MAP.get(symbol);
-                if (!conf.getEnable() || !BTR_CASHE.containsKey(conf.getSymbol())) return;
+                if (!conf.getEnable() || !BTR_CACHE.containsKey(conf.getSymbol())) return;
 
                 // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
                 AtomicBoolean allowOpen = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) return;
 
                 if (!isStrictMATrendConfirmed(data)) return;
-                BigDecimal latestPrice = BTR_CASHE.get(conf.getSymbol());
+                BigDecimal latestPrice = BTR_CACHE.get(conf.getSymbol());
                 DoubleMovingAveragePlaceOrder order = null;
                 //多空判断
                 if (gt(latestPrice, data.getMa144()) && gt(latestPrice, data.getEma144()) && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()))) {
@@ -561,7 +560,7 @@ public class DoubleMovingAverageStrategyService {
                         BitgetWSMarketResp marketResp = JsonUtil.toBean(data, BitgetWSMarketResp.class);
                         if (marketResp.getData() != null && !marketResp.getData().isEmpty()) {
                             BitgetWSMarketResp.MarketInfo info = marketResp.getData().getFirst();
-                            BTR_CASHE.put(info.getSymbol(), new BigDecimal(info.getLastPr()));
+                            BTR_CACHE.put(info.getSymbol(), new BigDecimal(info.getLastPr()));
                         }
                     }
                 });
@@ -610,7 +609,7 @@ public class DoubleMovingAverageStrategyService {
                 DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
                 if (config == null) return;
 
-                BigDecimal latestPrice = BTR_CASHE.get(config.getSymbol());
+                BigDecimal latestPrice = BTR_CACHE.get(config.getSymbol());
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
                 //仓位盈亏平衡价

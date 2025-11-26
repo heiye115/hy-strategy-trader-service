@@ -75,7 +75,7 @@ public class NumUtil {
         if (percentage.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Percentage must be greater than zero.");
         }
-        BigDecimal hundred = new BigDecimal("98");
+        BigDecimal hundred = new BigDecimal("95");
         BigDecimal leverage = hundred.divide(percentage, 0, RoundingMode.DOWN);
         //如果杠杆小于1 则返回1
         if (leverage.compareTo(BigDecimal.ONE) < 0) {
