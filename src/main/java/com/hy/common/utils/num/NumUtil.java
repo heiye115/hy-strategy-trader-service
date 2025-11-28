@@ -75,7 +75,7 @@ public class NumUtil {
         if (percentage.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Percentage must be greater than zero.");
         }
-        BigDecimal hundred = new BigDecimal("95");
+        BigDecimal hundred = new BigDecimal("80");
         BigDecimal leverage = hundred.divide(percentage, 0, RoundingMode.DOWN);
         //如果杠杆小于1 则返回1
         if (leverage.compareTo(BigDecimal.ONE) < 0) {
@@ -106,7 +106,7 @@ public class NumUtil {
         System.out.println("Value after 2.5% decrease: " + decreasedValue);
         System.out.println(calculate(originalValue, new BigDecimal("0")));
         System.out.println(calculateMaxLeverage(BigDecimal.valueOf(1)));
-        System.out.println(calculateExchangeMaxLeverage(BigDecimal.valueOf(0.95), 100));
+        System.out.println(calculateExchangeMaxLeverage(BigDecimal.valueOf(5), 100));
 
     }
 
