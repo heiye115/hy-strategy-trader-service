@@ -19,7 +19,9 @@ public enum SymbolEnum {
     LDOUSDT("LDOUSDT"),
     RPLUSDT("RPLUSDT"),
     HYPEUSDT("HYPEUSDT"),
-    ZECUSDT("ZECUSDT");
+    ZECUSDT("ZECUSDT"),
+    DOGEUSDT("DOGEUSDT"),
+    BNBUSDT("BNBUSDT");
 
     private final String code;
 
