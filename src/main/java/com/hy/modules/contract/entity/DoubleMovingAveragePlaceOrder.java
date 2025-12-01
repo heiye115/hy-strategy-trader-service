@@ -67,7 +67,18 @@ public class DoubleMovingAveragePlaceOrder {
      * 预设止损值
      * 为空则默认不设止损。
      **/
-    private String presetStopLossPrice;
+    private String stopLossPrice;
+
+    /**
+     * 预设止盈价
+     * 为空则默认不设止盈。
+     */
+    private String takeProfitPrice;
+
+    /**
+     * 止盈数量
+     **/
+    private String takeProfitSize;
 
     /**
      * 账户余额

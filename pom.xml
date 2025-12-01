@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.3</version>
+        <version>3.5.8</version>
         <relativePath/>
     </parent>
 
@@ -32,6 +32,7 @@
         <ta4j-core-version>0.19</ta4j-core-version>
         <fastjson.version>2.0.57</fastjson.version>
         <jasypt.version>3.0.5</jasypt.version>
+        <hyperliquid-java-sdk.version>0.2.2</hyperliquid-java-sdk.version>
     </properties>
 
     <dependencies>
@@ -179,6 +180,12 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-math4-core</artifactId>
             <version>4.0-beta1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.heiye115</groupId>
+            <artifactId>hyperliquid-java-sdk</artifactId>
+            <version>${hyperliquid-java-sdk.version}</version>
         </dependency>
 
     </dependencies>

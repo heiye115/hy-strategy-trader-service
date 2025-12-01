@@ -379,16 +379,16 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 创建双均线下单信息
      */
-    public DoubleMovingAveragePlaceOrder createPlaceOrder(DoubleMovingAverageStrategyConfig conf, String side, BigDecimal latestPrice, BigDecimal presetStopLossPrice) {
+    public DoubleMovingAveragePlaceOrder createPlaceOrder(DoubleMovingAverageStrategyConfig conf, String side, BigDecimal latestPrice, BigDecimal stopLossPrice) {
         DoubleMovingAveragePlaceOrder order = new DoubleMovingAveragePlaceOrder();
         order.setClientOid(IdUtil.getSnowflakeNextIdStr());
         order.setSymbol(conf.getSymbol());
         order.setSide(side);
-        order.setPresetStopLossPrice(presetStopLossPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
+        order.setStopLossPrice(stopLossPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
         order.setOrderType(BG_ORDER_TYPE_MARKET);
         order.setMarginMode(BG_MARGIN_MODE_ISOLATED);
         //计算涨跌幅百分比
-        BigDecimal changePercent = calculateChangePercent(presetStopLossPrice, latestPrice).abs();
+        BigDecimal changePercent = calculateChangePercent(stopLossPrice, latestPrice).abs();
         //计算最大可开杠杆
         int actualLeverage = calculateExchangeMaxLeverage(changePercent, conf.getMaxLeverage());
         // 计算实际开仓数量
@@ -396,6 +396,16 @@ public class DoubleMovingAverageStrategyService {
         BigDecimal size = realityOpenAmount.divide(latestPrice, conf.getVolumePlace(), RoundingMode.HALF_UP);
         order.setSize(size.toPlainString());
         order.setLeverage(actualLeverage);
+        // 止盈数量 默认50%
+        order.setTakeProfitSize(size.multiply(BigDecimal.valueOf(0.5)).setScale(conf.getVolumePlace(), RoundingMode.HALF_UP).toPlainString());
+        //止盈价 盈亏比 1:1
+        BigDecimal takeProfitPrice = BigDecimal.ZERO;
+        if (BG_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
+            takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+        } else if (BG_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
+            takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+        }
+        order.setTakeProfitPrice(takeProfitPrice.toPlainString());
         return order;
     }
 
@@ -450,6 +460,11 @@ public class DoubleMovingAverageStrategyService {
                         // 执行下单
                         ResponseResult<BitgetPlaceOrderResp> orderResult = executeOrder(orderParam);
                         log.info("startOrderConsumer: 下单完成，订单信息: {}, 返回结果: {}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult));
+                        if (orderResult.getData() == null) {
+                            log.error("startOrderConsumer: 下单失败，订单信息: {}, 错误信息: {}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult));
+                            continue;
+                        }
+                        handleSuccessfulOrder(orderParam, orderResult.getData());
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         log.warn("startOrderConsumer下单消费者线程被中断，准备退出", e);
@@ -459,6 +474,52 @@ public class DoubleMovingAverageStrategyService {
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * 处理下单成功后的操作
+     */
+    private void handleSuccessfulOrder(DoubleMovingAveragePlaceOrder orderParam, BitgetPlaceOrderResp orderResult) {
+        try {
+            if (orderParam.getTakeProfitSize() == null || orderParam.getTakeProfitPrice() == null) {
+                return;
+            }
+            // 设置仓位止盈
+            setPlaceTpslOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide(), BG_PLAN_TYPE_PROFIT_PLAN);
+        } catch (Exception e) {
+            log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult), e);
+        }
+    }
+
+    /**
+     * 设置止盈止损计划委托下单
+     */
+    public void setPlaceTpslOrder(String symbol, String triggerPrice, String executePrice, String size, String holdSide, String planType) {
+        BitgetPlaceTpslOrderParam param = new BitgetPlaceTpslOrderParam();
+        param.setClientOid(IdUtil.getSnowflakeNextIdStr());
+        param.setMarginCoin(DEFAULT_CURRENCY_USDT);
+        param.setProductType(BG_PRODUCT_TYPE_USDT_FUTURES);
+        param.setSymbol(symbol);
+        param.setPlanType(planType);
+        param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
+        param.setTriggerPrice(triggerPrice);
+        if (executePrice != null) {
+            param.setExecutePrice(executePrice);
+        }
+        if (size != null) {
+            param.setSize(size);
+        }
+        param.setHoldSide(holdSide);
+        try {
+            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetSession.placeTpslOrder(param);
+            if (rs == null) {
+                log.error("setPlaceTpslOrder: 设置止盈止损委托计划失败, param: {}", JsonUtil.toJson(param));
+                return;
+            }
+            log.info("setPlaceTpslOrder: 设置止盈止损委托计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(rs));
+        } catch (Exception e) {
+            log.error("setPlaceTpslOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", JsonUtil.toJson(param), e.getMessage());
         }
     }
 
@@ -474,7 +535,7 @@ public class DoubleMovingAverageStrategyService {
                 null,
                 orderParam.getOrderType(),
                 orderParam.getMarginMode(),
-                orderParam.getPresetStopLossPrice());
+                orderParam.getStopLossPrice());
     }
 
 
