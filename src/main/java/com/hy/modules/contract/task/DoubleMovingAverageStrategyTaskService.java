@@ -30,9 +30,9 @@ public class DoubleMovingAverageStrategyTaskService {
 
     /**
      * 双均线数据监控
-     * 每十分钟执行一次
+     * 每五分钟执行一次
      **/
-    @Scheduled(cron = "0 */10 * * * ?")
+    @Scheduled(cron = "0 */5 * * * ?")
     public void doubleMovingAverageDataMonitoring() {
         try {
             doubleMovingAverageStrategyService.doubleMovingAverageDataMonitoring();
