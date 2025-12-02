@@ -327,8 +327,8 @@ public class DoubleMovingAverageStrategyService {
         openLockMap.putIfAbsent(symbol, new AtomicBoolean(true));
         AtomicBoolean lock = openLockMap.get(symbol);
         if (lock.compareAndSet(true, false)) {
-            // 10秒后自动释放锁
-            taskScheduler.schedule(() -> lock.set(true), Instant.now().plusSeconds(10));
+            // 4小时后自动释放锁
+            taskScheduler.schedule(() -> lock.set(true), Instant.now().plus(Duration.ofHours(4)));
             return true;
         }
         return false;
