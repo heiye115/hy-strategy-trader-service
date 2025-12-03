@@ -456,7 +456,7 @@ public class DoubleMovingAverageStrategyService {
                 // ⚡ 2. 震荡市场过滤（新增核心逻辑）
                 BarSeries series = BAR_SERIES_CACHE.get(symbol);
                 if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
-                    log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
+                    //log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
                     //return; // 震荡市场，直接跳过
                 }
 
