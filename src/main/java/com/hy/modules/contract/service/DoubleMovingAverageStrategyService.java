@@ -105,6 +105,11 @@ public class DoubleMovingAverageStrategyService {
      * 百分比计算常量
      **/
     private final static BigDecimal SPREAD_RATE = new BigDecimal("0.8");
+        
+    /**
+     * 中间价偏离度 (0.3%)
+     **/
+    private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.3");
 
 
     /**
@@ -305,50 +310,91 @@ public class DoubleMovingAverageStrategyService {
      * 构建跟踪趋势下单
      **/
     public DoubleMovingAveragePlaceOrder buildTrendFollowingPlaceOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
-        DoubleMovingAveragePlaceOrder order = null;
-        //多空判断
-        if (gt(latestPrice, data.getMa144()) && gt(latestPrice, data.getEma144()) && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()))) {
-            BigDecimal upPriceRange = data.getMaxValue();
-            BigDecimal downPriceRange = data.getMinValue();
-            //中间价区间
-            BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
-            BigDecimal medianPriceDecrease = AmountCalculator.decrease(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
-            //判断 latestPrice 是否在 medianPrice ,medianPriceDecrease 之间
-            if (gte(latestPrice, medianPriceDecrease) && lt(latestPrice, medianPrice)) {
-                //符合多头开多条件，预处理下单信息
-                order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, downPriceRange);
-            }
-        } else if (lt(latestPrice, data.getMa144()) && lt(latestPrice, data.getEma144()) && (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144()))) {
-            BigDecimal downPriceRange = data.getMinValue();
-            BigDecimal upPriceRange = data.getMaxValue();
-            //中间价区间
-            BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
-            BigDecimal medianPriceIncrease = AmountCalculator.increase(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
-            //判断 latestPrice 是否在 medianPriceIncrease ,medianPrice 之间
-            if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceIncrease)) {
-                //符合空头开空条件，预处理下单信息
-                order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, upPriceRange);
-            }
+        // 检测多头趋势
+        if (isLongTrendCondition(data, latestPrice)) {
+            return buildLongTrendOrder(conf, data, latestPrice);
         }
-        return order;
+        // 检测空头趋势
+        if (isShortTrendCondition(data, latestPrice)) {
+            return buildShortTrendOrder(conf, data, latestPrice);
+        }
+        return null;
+    }
+
+    /**
+     * 检测多头趋势条件
+     */
+    private boolean isLongTrendCondition(DoubleMovingAverageData data, BigDecimal latestPrice) {
+        return gt(latestPrice, data.getMa144())
+                && gt(latestPrice, data.getEma144())
+                && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()));
+    }
+
+    /**
+     * 检测空头趋势条件
+     */
+    private boolean isShortTrendCondition(DoubleMovingAverageData data, BigDecimal latestPrice) {
+        return lt(latestPrice, data.getMa144())
+                && lt(latestPrice, data.getEma144())
+                && (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144()));
+    }
+
+    /**
+     * 构建多头趋势订单
+     */
+    private DoubleMovingAveragePlaceOrder buildLongTrendOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+        BigDecimal highPrice = data.getMaxValue();
+        BigDecimal lowPrice = data.getMinValue();
+
+        // 计算中间价区间 (优化: 使用除法代替减法+乘法)
+        BigDecimal medianPrice = highPrice.add(lowPrice).divide(BigDecimal.valueOf(2), conf.getPricePlace(), RoundingMode.HALF_UP);
+        BigDecimal medianPriceLower = AmountCalculator.decrease(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
+
+        // 价格在中间价下方0.3%到中间价之间，符合多头开多条件
+        if (gte(latestPrice, medianPriceLower) && lt(latestPrice, medianPrice)) {
+            return createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, lowPrice);
+        }
+
+        return null;
+    }
+
+    /**
+     * 构建空头趋势订单
+     */
+    private DoubleMovingAveragePlaceOrder buildShortTrendOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+        BigDecimal highPrice = data.getMaxValue();
+        BigDecimal lowPrice = data.getMinValue();
+
+        // 计算中间价区间 (优化: 使用除法代替减法+乘法)
+        BigDecimal medianPrice = highPrice.add(lowPrice).divide(BigDecimal.valueOf(2), conf.getPricePlace(), RoundingMode.HALF_UP);
+        BigDecimal medianPriceUpper = AmountCalculator.increase(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
+
+        // 价格在中间价到中间价上方0.3%之间，符合空头开空条件
+        if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceUpper)) {
+            return createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, highPrice);
+        }
+
+        return null;
     }
 
     /**
      * 构建跟踪突破下单
      **/
     public DoubleMovingAveragePlaceOrder buildBreakoutPlaceOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
-        DoubleMovingAveragePlaceOrder order = null;
         BigDecimal maxValue = data.getMaxValue();
         BigDecimal minValue = data.getMinValue();
-        //多头突破
+
+        // 多头突破: 价格突破最高位
         if (gt(latestPrice, maxValue)) {
-            order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, minValue);
+            return createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, minValue);
         }
-        //空头突破
-        else if (lt(latestPrice, minValue)) {
-            order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, maxValue);
+
+        // 空头突破: 价格跌破最低位
+        if (lt(latestPrice, minValue)) {
+            return createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, maxValue);
         }
-        return order;
+
+        return null;
     }
 
 
