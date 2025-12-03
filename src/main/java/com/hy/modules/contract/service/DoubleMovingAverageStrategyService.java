@@ -102,19 +102,63 @@ public class DoubleMovingAverageStrategyService {
     private final static Integer LIMIT = 1000;
 
     /**
-     * 百分比计算常量
-     **/
-    private final static BigDecimal SPREAD_RATE = new BigDecimal("0.8");
-
-    /**
      * 中间价偏离度 (0.3%)
      **/
     private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.3");
 
     /**
-     * 动态止盈系数增量单位 (1% = 0.01)
+     * 动态止盈分段系数 - 第一段基础系数 (保守阶段)
+     * 偏离度在阈值基础上 0-10% 时的基础系数
      **/
-    private final static BigDecimal COEFFICIENT_INCREMENT_UNIT = new BigDecimal("0.01");
+    private final static BigDecimal STAGE1_BASE_COEFFICIENT = new BigDecimal("0.70");
+
+    /**
+     * 动态止盈分段系数 - 第二段基础系数 (稳健阶段)
+     * 偏离度在阈值基础上 10-20% 时的基础系数
+     **/
+    private final static BigDecimal STAGE2_BASE_COEFFICIENT = new BigDecimal("0.80");
+
+    /**
+     * 动态止盈分段系数 - 第三段基础系数 (激进阶段)
+     * 偏离度在阈值基础上 20%+ 时的基础系数
+     **/
+    private final static BigDecimal STAGE3_BASE_COEFFICIENT = new BigDecimal("0.88");
+
+    /**
+     * 动态止盈系数最大值 (保留5%插针容忍度)
+     **/
+    private final static BigDecimal MAX_DYNAMIC_COEFFICIENT = new BigDecimal("0.95");
+    
+    /**
+     * 动态止盈最低盈利阈值 (2%)
+     * 只有当实际盈利超过此阈值时，才启动动态止盈机制
+     **/
+    private final static BigDecimal MIN_PROFIT_THRESHOLD = new BigDecimal("2.0");
+
+    /**
+     * 分段阈值 - 第一阶段上限 (10%)
+     **/
+    private final static BigDecimal STAGE1_THRESHOLD = BigDecimal.TEN;
+
+    /**
+     * 分段阈值 - 第二阶段上限 (20%)
+     **/
+    private final static BigDecimal STAGE2_THRESHOLD = new BigDecimal("20");
+
+    /**
+     * 第一阶段系数增量单位 (每1%偏离增加1%系数)
+     **/
+    private final static BigDecimal STAGE1_INCREMENT = new BigDecimal("0.01");
+
+    /**
+     * 第二阶段系数增量单位 (每1%偏离增加1%系数)
+     **/
+    private final static BigDecimal STAGE2_INCREMENT = new BigDecimal("0.01");
+
+    /**
+     * 第三阶段系数增量单位 (每1%偏离增加0.35%系数，增速放缓)
+     **/
+    private final static BigDecimal STAGE3_INCREMENT = new BigDecimal("0.0035");
 
 
     /**
@@ -795,8 +839,8 @@ public class DoubleMovingAverageStrategyService {
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
-                // 计算动态止盈价（基于持仓方向）
-                BigDecimal stopProfitPrice = calculateDynamicStopProfitPrice(latestPrice, data, config, position.getHoldSide());
+                // 计算动态止盈价（基于持仓方向和盈亏平衡价）
+                BigDecimal stopProfitPrice = calculateDynamicStopProfitPrice(latestPrice, data, config, position);
 
                 // 获取当前委托订单
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
@@ -812,70 +856,166 @@ public class DoubleMovingAverageStrategyService {
 
     /**
      * 计算动态止盈价
-     * 根据当前价格与开仓止损价的偏离度动态调整止盈位置
+     * 根据当前价格、持仓方向和盈亏平衡价动态调整止盈位置
+     * 重要：只有当实际盈利超过最低阈值时才启动动态止盈，避免刚开仓就被止盈
      *
      * @param latestPrice 最新价格
      * @param data        双均线数据
      * @param config      策略配置
-     * @param holdSide    持仓方向 ("long" 多头 / "short" 空头)
+     * @param position    持仓信息（包含盈亏平衡价、持仓方向）
      * @return 动态止盈价，如果不满足条件则返回ZERO
      */
     private BigDecimal calculateDynamicStopProfitPrice(BigDecimal latestPrice, DoubleMovingAverageData data,
-                                                       DoubleMovingAverageStrategyConfig config, String holdSide) {
+                                                        DoubleMovingAverageStrategyConfig config, BitgetAllPositionResp position) {
         BigDecimal maxValue = data.getMaxValue();
         BigDecimal minValue = data.getMinValue();
+        
+        // 获取盈亏平衡价（包含开仓价格 + 手续费）
+        BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice())
+            .setScale(config.getPricePlace(), RoundingMode.HALF_UP);
 
-        // 多头持仓: 价格上涨时计算动态止盈
-        if (BG_HOLD_SIDE_LONG.equals(holdSide)) {
-            // 价格需要高于初始止损价(minValue)才有盈利空间
-            if (gt(latestPrice, minValue)) {
-                return calculateStopProfitForLong(latestPrice, minValue, config);
-            }
+        // 多头持仓: 价格上涨且盈利达到阈值时计算动态止盈
+        if (BG_HOLD_SIDE_LONG.equals(position.getHoldSide())) {
+            return calculateStopProfitForLong(latestPrice, minValue, breakEvenPrice, config);
         }
-        // 空头持仓: 价格下跌时计算动态止盈
-        else if (BG_HOLD_SIDE_SHORT.equals(holdSide)) {
-            // 价格需要低于初始止损价(maxValue)才有盈利空间
-            if (lt(latestPrice, maxValue)) {
-                return calculateStopProfitForShort(latestPrice, maxValue, config);
-            }
+        // 空头持仓: 价格下跌且盈利达到阈值时计算动态止盈
+        else if (BG_HOLD_SIDE_SHORT.equals(position.getHoldSide())) {
+            return calculateStopProfitForShort(latestPrice, maxValue, breakEvenPrice, config);
         }
+        
         return BigDecimal.ZERO;
     }
 
     /**
      * 计算多头动态止盈价
+     * 重要修复：只有当实际盈利超过2%时才启动动态止盈，避免刚开仓就被止盈或亏损止盈
+     * 
+     * @param latestPrice 最新价格
+     * @param basePrice 基础价格（止损价 = minValue）
+     * @param breakEvenPrice 盈亏平衡价（开仓价 + 手续费）
+     * @param config 策略配置
      */
-    private BigDecimal calculateStopProfitForLong(BigDecimal latestPrice, BigDecimal basePrice, DoubleMovingAverageStrategyConfig config) {
+    private BigDecimal calculateStopProfitForLong(BigDecimal latestPrice, BigDecimal basePrice, 
+                                                  BigDecimal breakEvenPrice, DoubleMovingAverageStrategyConfig config) {
+        // 1. 首先检查是否已经盈利
+        if (lte(latestPrice, breakEvenPrice)) {
+            return BigDecimal.ZERO;  // 还未盈利，不触发动态止盈
+        }
+        
+        // 2. 计算实际盈利百分比（基于盈亏平衡价）
+        BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
+        
+        // 3. 盈利必须超过最低阈值（默认2%）才启动动态止盈
+        if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
+            return BigDecimal.ZERO;  // 盈利不足，不触发
+        }
+        
+        // 4. 计算价格相对于止损价的偏离度
         BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
-        // 价格偏离度未达到阈值，不计算止盈
         if (lte(priceChangePercent, config.getDeviationFromMA())) {
             return BigDecimal.ZERO;
         }
-        // 计算动态系数: 基础系数 + (偏离度 - 阈值) * 0.01，最大为1.0
-        BigDecimal dynamicCoefficient = SPREAD_RATE
-                .add(priceChangePercent.subtract(config.getDeviationFromMA()).multiply(COEFFICIENT_INCREMENT_UNIT))
-                .min(BigDecimal.ONE);
-        // 止盈价 = 基础价 + 价差 * 动态系数
+        
+        // 5. 计算动态系数（分段计算，适应币圈插针特性）
+        BigDecimal dynamicCoefficient = calculateDynamicCoefficient(priceChangePercent, config.getDeviationFromMA());
+
+        // 6. 计算止盈价 = 基础价 + 价差 * 动态系数
         BigDecimal spread = latestPrice.subtract(basePrice).multiply(dynamicCoefficient);
-        return basePrice.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+        BigDecimal stopProfitPrice = basePrice.add(spread);
+        
+        // 7. 确保止盈价至少高于盈亏平衡价（保证盈利）
+        if (lte(stopProfitPrice, breakEvenPrice)) {
+            // 如果计算出的止盈价低于保本价，至少设为保本价+0.5%
+            stopProfitPrice = breakEvenPrice.multiply(new BigDecimal("1.005"));
+        }
+        
+        return stopProfitPrice.setScale(config.getPricePlace(), RoundingMode.HALF_UP);
     }
 
     /**
      * 计算空头动态止盈价
+     * 重要修复：只有当实际盈利超过2%时才启动动态止盈，避免刚开仓就被止盈或亏损止盈
+     * 
+     * @param latestPrice 最新价格
+     * @param basePrice 基础价格（止损价 = maxValue）
+     * @param breakEvenPrice 盈亏平衡价（开仓价 + 手续费）
+     * @param config 策略配置
      */
-    private BigDecimal calculateStopProfitForShort(BigDecimal latestPrice, BigDecimal basePrice, DoubleMovingAverageStrategyConfig config) {
+    private BigDecimal calculateStopProfitForShort(BigDecimal latestPrice, BigDecimal basePrice, 
+                                                   BigDecimal breakEvenPrice, DoubleMovingAverageStrategyConfig config) {
+        // 1. 首先检查是否已经盈利
+        if (gte(latestPrice, breakEvenPrice)) {
+            return BigDecimal.ZERO;  // 还未盈利，不触发动态止盈
+        }
+        
+        // 2. 计算实际盈利百分比（基于盈亏平衡价）
+        BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
+        
+        // 3. 盈利必须超过最低阈值（默认2%）才启动动态止盈
+        if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
+            return BigDecimal.ZERO;  // 盈利不足，不触发
+        }
+        
+        // 4. 计算价格相对于止损价的偏离度
         BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
-        // 价格偏离度未达到阈值，不计算止盈
         if (lte(priceChangePercent, config.getDeviationFromMA())) {
             return BigDecimal.ZERO;
         }
-        // 计算动态系数: 基础系数 + (偏离度 - 阈值) * 0.01，最大为1.0
-        BigDecimal dynamicCoefficient = SPREAD_RATE
-                .add(priceChangePercent.subtract(config.getDeviationFromMA()).multiply(COEFFICIENT_INCREMENT_UNIT))
-                .min(BigDecimal.ONE);
-        // 止盈价 = 基础价 - 价差 * 动态系数
+        
+        // 5. 计算动态系数（分段计算，适应币圈插针特性）
+        BigDecimal dynamicCoefficient = calculateDynamicCoefficient(priceChangePercent, config.getDeviationFromMA());
+
+        // 6. 计算止盈价 = 基础价 - 价差 * 动态系数
         BigDecimal spread = basePrice.subtract(latestPrice).multiply(dynamicCoefficient);
-        return basePrice.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+        BigDecimal stopProfitPrice = basePrice.subtract(spread);
+        
+        // 7. 确保止盈价至少低于盈亏平衡价（保证盈利）
+        if (gte(stopProfitPrice, breakEvenPrice)) {
+            // 如果计算出的止盈价高于保本价，至少设为保本价-0.5%
+            stopProfitPrice = breakEvenPrice.multiply(new BigDecimal("0.995"));
+        }
+        
+        return stopProfitPrice.setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 计算动态止盈系数（分段计算策略）
+     * 根据价格偏离度采用不同的系数增长速率，平衡收益与风险
+     * 分段策略：
+     * - 第一段 (0-10%超额偏离): 基础系数0.70，每1%增加1%，范围 0.70-0.80 (保守锁定70-80%利润)
+     * - 第二段 (10-20%超额偏离): 基础系数0.80，每1%增加1%，范围 0.80-0.90 (稳健锁定80-90%利润)
+     * - 第三段 (20%+超额偏离): 基础系数0.88，每1%增加0.35%，最大0.95 (激进但保留5%插针容忍度)
+     *
+     * @param currentDeviation   当前价格偏离度百分比
+     * @param thresholdDeviation 配置的偏离度阈值
+     * @return 动态系数 (0.70-0.95)
+     */
+    private BigDecimal calculateDynamicCoefficient(BigDecimal currentDeviation, BigDecimal thresholdDeviation) {
+        // 计算超出阈值的偏离度
+        BigDecimal excessDeviation = currentDeviation.subtract(thresholdDeviation);
+
+        BigDecimal coefficient;
+
+        // 第一阶段: 超额偏离 0-10%，系数 0.70-0.80 (保守阶段)
+        if (lte(excessDeviation, STAGE1_THRESHOLD)) {
+            coefficient = STAGE1_BASE_COEFFICIENT
+                    .add(excessDeviation.multiply(STAGE1_INCREMENT));
+        }
+        // 第二阶段: 超额偏离 10-20%，系数 0.80-0.90 (稳健阶段)
+        else if (lte(excessDeviation, STAGE2_THRESHOLD)) {
+            BigDecimal stage2Excess = excessDeviation.subtract(STAGE1_THRESHOLD);
+            coefficient = STAGE2_BASE_COEFFICIENT
+                    .add(stage2Excess.multiply(STAGE2_INCREMENT));
+        }
+        // 第三阶段: 超额偏离 20%+，系数 0.88-0.95 (激进阶段，增速放缓)
+        else {
+            BigDecimal stage3Excess = excessDeviation.subtract(STAGE2_THRESHOLD);
+            coefficient = STAGE3_BASE_COEFFICIENT
+                    .add(stage3Excess.multiply(STAGE3_INCREMENT));
+        }
+
+        // 限制最大系数为0.95，保留5%插针容忍度
+        return coefficient.min(MAX_DYNAMIC_COEFFICIENT);
     }
 
     /**
