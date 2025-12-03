@@ -454,11 +454,11 @@ public class DoubleMovingAverageStrategyService {
                 BigDecimal latestPrice = LATEST_PRICE_CACHE.get(conf.getSymbol());
 
                 // ⚡ 2. 震荡市场过滤（新增核心逻辑）
-                BarSeries series = BAR_SERIES_CACHE.get(symbol);
-                if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
-                    //log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
-                    //return; // 震荡市场，直接跳过
-                }
+                //BarSeries series = BAR_SERIES_CACHE.get(symbol);
+                //if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
+                //log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
+                //return; // 震荡市场，直接跳过
+                //}
 
                 DoubleMovingAveragePlaceOrder order = null;
 
@@ -1399,17 +1399,17 @@ public class DoubleMovingAverageStrategyService {
         BigDecimal adr = calculateADR(series, ADR_PERIOD);
         BigDecimal adrThreshold = getADRThreshold(timeFrame);
         if (lte(adr, adrThreshold)) {
-            log.warn("震荡过滤 [{}]: ADR={}% <= 阈值{}%, 市场波动不足，疑似震荡市", symbol, adr, adrThreshold);
+            //log.warn("震荡过滤 [{}]: ADR={}% <= 阈值{}%, 市场波动不足，疑似震荡市", symbol, adr, adrThreshold);
             return true;  // ADR过低，确认为震荡市场
         }
         // 2. 均线收敛检测：均线距离过近表示震荡
         BigDecimal maConvergence = calculateMAConvergence(data);
         if (lte(maConvergence, MA_CONVERGENCE_THRESHOLD)) {
-            log.warn("震荡过滤 [{}]: 均线收敛度={}% <= 阈值{}%, 均线系统纠缠，疑似震荡市", symbol, maConvergence, MA_CONVERGENCE_THRESHOLD);
+            //log.warn("震荡过滤 [{}]: 均线收敛度={}% <= 阈值{}%, 均线系统纠缠，疑似震荡市", symbol, maConvergence, MA_CONVERGENCE_THRESHOLD);
             return true;  // 均线收敛，确认为震荡市场
         }
         // 3. 双重检测都通过，市场处于趋势状态
-        log.info("震荡过滤 [{}]: 通过 ✓ ADR={}% 均线收敛度={}% 市场具备趋势特征", symbol, adr, maConvergence);
+        //log.info("震荡过滤 [{}]: 通过 ✓ ADR={}% 均线收敛度={}% 市场具备趋势特征", symbol, adr, maConvergence);
         return false;
     }
 }
