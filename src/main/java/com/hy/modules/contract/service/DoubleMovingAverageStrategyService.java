@@ -133,7 +133,7 @@ public class DoubleMovingAverageStrategyService {
      * 动态止盈最低盈利阈值 (1%)
      * 只有当实际盈利超过此阈值时，才启动动态止盈机制
      **/
-    private final static BigDecimal MIN_PROFIT_THRESHOLD = new BigDecimal("1.0");
+    private final static BigDecimal MIN_PROFIT_THRESHOLD = new BigDecimal("2.0");
 
     /**
      * 分段阈值 - 第一阶段上限 (10%)
@@ -166,8 +166,8 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M15.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(5.0)));
-            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.M15.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(10.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H1.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(8.0)));
+            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H1.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(12.0)));
             put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
             put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(30.0)));
             put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(30.0)));
@@ -283,7 +283,13 @@ public class DoubleMovingAverageStrategyService {
                     ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, config.getTimeFrame(), LIMIT);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
                     if (rs.getData().size() < 500) return;
-                    BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(config.getTimeFrame())).getDuration());
+                    // 建议改为更友好的错误处理
+                    BitgetEnum bitgetEnum = BitgetEnum.getByCode(config.getTimeFrame());
+                    if (bitgetEnum == null) {
+                        log.error("doubleMovingAverageDataMonitoring: 未知的时间周期, symbol={}, timeFrame={}", config.getSymbol(), config.getTimeFrame());
+                        return;
+                    }
+                    BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), bitgetEnum.getDuration());
                     DoubleMovingAverageData data = calculateIndicators(barSeries, config.getPricePlace());
                     DMAS_CACHE.put(config.getSymbol(), data);
                 } catch (Exception e) {
@@ -454,11 +460,37 @@ public class DoubleMovingAverageStrategyService {
         openLockMap.putIfAbsent(symbol, new AtomicBoolean(true));
         AtomicBoolean lock = openLockMap.get(symbol);
         if (lock.compareAndSet(true, false)) {
-            // 4小时后自动释放锁
-            taskScheduler.schedule(() -> lock.set(true), Instant.now().plus(Duration.ofHours(4)));
+            // 根据时间周期动态设置冷却期
+            DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
+            Duration cooldown = getCooldownPeriod(config.getTimeFrame());
+            taskScheduler.schedule(() -> lock.set(true), Instant.now().plus(cooldown));
             return true;
         }
         return false;
+    }
+
+    /**
+     * 根据时间周期获取冷却期
+     * 冷却期策略：短周期（1小时）使用4倍周期作为冷却期，长周期（4小时）使用2倍周期
+     * 这样可以避免在同一趋势中频繁开仓，同时不错过新趋势
+     *
+     * @param timeFrame 时间周期（如 "1H", "4H" 等）
+     * @return 冷却期时长
+     */
+    private Duration getCooldownPeriod(String timeFrame) {
+        // 优先匹配已知周期，提供明确的冷却策略
+        if (BitgetEnum.H1.getCode().equals(timeFrame)) {
+            return Duration.ofHours(4);  // 1小时周期 → 4小时冷却（4倍周期）
+        } else if (BitgetEnum.H4.getCode().equals(timeFrame)) {
+            return Duration.ofHours(8);  // 4小时周期 → 8小时冷却（2倍周期）
+        } else if (BitgetEnum.M15.getCode().equals(timeFrame)) {
+            return Duration.ofHours(1);  // 15分钟周期 → 1小时冷却（备用）
+        } else if (BitgetEnum.M30.getCode().equals(timeFrame)) {
+            return Duration.ofHours(2);  // 30分钟周期 → 2小时冷却（备用）
+        }
+
+        // 默认返回4小时冷却期（保守策略）
+        return Duration.ofHours(4);
     }
 
     /**
@@ -992,27 +1024,21 @@ public class DoubleMovingAverageStrategyService {
     private BigDecimal calculateDynamicCoefficient(BigDecimal currentDeviation, BigDecimal thresholdDeviation) {
         // 计算超出阈值的偏离度
         BigDecimal excessDeviation = currentDeviation.subtract(thresholdDeviation);
-
         BigDecimal coefficient;
-
         // 第一阶段: 超额偏离 0-10%，系数 0.70-0.80 (保守阶段)
         if (lte(excessDeviation, STAGE1_THRESHOLD)) {
-            coefficient = STAGE1_BASE_COEFFICIENT
-                    .add(excessDeviation.multiply(STAGE1_INCREMENT));
+            coefficient = STAGE1_BASE_COEFFICIENT.add(excessDeviation.multiply(STAGE1_INCREMENT));
         }
         // 第二阶段: 超额偏离 10-20%，系数 0.80-0.90 (稳健阶段)
         else if (lte(excessDeviation, STAGE2_THRESHOLD)) {
             BigDecimal stage2Excess = excessDeviation.subtract(STAGE1_THRESHOLD);
-            coefficient = STAGE2_BASE_COEFFICIENT
-                    .add(stage2Excess.multiply(STAGE2_INCREMENT));
+            coefficient = STAGE2_BASE_COEFFICIENT.add(stage2Excess.multiply(STAGE2_INCREMENT));
         }
         // 第三阶段: 超额偏离 20%+，系数 0.88-0.95 (激进阶段，增速放缓)
         else {
             BigDecimal stage3Excess = excessDeviation.subtract(STAGE2_THRESHOLD);
-            coefficient = STAGE3_BASE_COEFFICIENT
-                    .add(stage3Excess.multiply(STAGE3_INCREMENT));
+            coefficient = STAGE3_BASE_COEFFICIENT.add(stage3Excess.multiply(STAGE3_INCREMENT));
         }
-
         // 限制最大系数为0.95，保留5%插针容忍度
         return coefficient.min(MAX_DYNAMIC_COEFFICIENT);
     }
