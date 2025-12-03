@@ -269,33 +269,15 @@ public class DoubleMovingAverageStrategyService {
                 // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
                 AtomicBoolean allowOpen = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) return;
-
-                if (!isStrictMATrendConfirmed(data)) return;
                 BigDecimal latestPrice = BTR_CACHE.get(conf.getSymbol());
                 DoubleMovingAveragePlaceOrder order = null;
-                //多空判断
-                if (gt(latestPrice, data.getMa144()) && gt(latestPrice, data.getEma144()) && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()))) {
-                    BigDecimal upPriceRange = data.getMaxValue();
-                    BigDecimal downPriceRange = data.getMinValue();
-                    //中间价区间
-                    BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
-                    BigDecimal medianPriceDecrease = AmountCalculator.decrease(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
-                    //判断 latestPrice 是否在 medianPrice ,medianPriceDecrease 之间
-                    if (gte(latestPrice, medianPriceDecrease) && lt(latestPrice, medianPrice)) {
-                        //符合多头开多条件，预处理下单信息
-                        order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, downPriceRange);
-                    }
-                } else if (lt(latestPrice, data.getMa144()) && lt(latestPrice, data.getEma144()) && (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144()))) {
-                    BigDecimal downPriceRange = data.getMinValue();
-                    BigDecimal upPriceRange = data.getMaxValue();
-                    //中间价区间
-                    BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
-                    BigDecimal medianPriceIncrease = AmountCalculator.increase(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
-                    //判断 latestPrice 是否在 medianPriceIncrease ,medianPrice 之间
-                    if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceIncrease)) {
-                        //符合空头开空条件，预处理下单信息
-                        order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, upPriceRange);
-                    }
+                //跟踪趋势下单
+                if (isStrictMATrendConfirmed(data)) {
+                    order = buildTrendFollowingPlaceOrder(conf, data, latestPrice);
+                }
+                //跟踪突破下单
+                if (order == null && isBreakoutTrend(data, latestPrice)) {
+                    order = buildBreakoutPlaceOrder(conf, data, latestPrice);
                 }
                 if (order != null && tryAcquireOpenLock(symbol)) {
                     // 获取用于写入的 allowOpen 对象（如果之前不存在，则认为允许开单）
@@ -319,6 +301,56 @@ public class DoubleMovingAverageStrategyService {
         }
     }
 
+    /**
+     * 构建跟踪趋势下单
+     **/
+    public DoubleMovingAveragePlaceOrder buildTrendFollowingPlaceOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+        DoubleMovingAveragePlaceOrder order = null;
+        //多空判断
+        if (gt(latestPrice, data.getMa144()) && gt(latestPrice, data.getEma144()) && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()))) {
+            BigDecimal upPriceRange = data.getMaxValue();
+            BigDecimal downPriceRange = data.getMinValue();
+            //中间价区间
+            BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
+            BigDecimal medianPriceDecrease = AmountCalculator.decrease(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
+            //判断 latestPrice 是否在 medianPrice ,medianPriceDecrease 之间
+            if (gte(latestPrice, medianPriceDecrease) && lt(latestPrice, medianPrice)) {
+                //符合多头开多条件，预处理下单信息
+                order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, downPriceRange);
+            }
+        } else if (lt(latestPrice, data.getMa144()) && lt(latestPrice, data.getEma144()) && (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144()))) {
+            BigDecimal downPriceRange = data.getMinValue();
+            BigDecimal upPriceRange = data.getMaxValue();
+            //中间价区间
+            BigDecimal medianPrice = downPriceRange.add(upPriceRange.subtract(downPriceRange).multiply(BigDecimal.valueOf(0.5)));
+            BigDecimal medianPriceIncrease = AmountCalculator.increase(medianPrice, BigDecimal.valueOf(0.3), conf.getPricePlace());
+            //判断 latestPrice 是否在 medianPriceIncrease ,medianPrice 之间
+            if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceIncrease)) {
+                //符合空头开空条件，预处理下单信息
+                order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, upPriceRange);
+            }
+        }
+        return order;
+    }
+
+    /**
+     * 构建跟踪突破下单
+     **/
+    public DoubleMovingAveragePlaceOrder buildBreakoutPlaceOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+        DoubleMovingAveragePlaceOrder order = null;
+        BigDecimal maxValue = data.getMaxValue();
+        BigDecimal minValue = data.getMinValue();
+        //多头突破
+        if (gt(latestPrice, maxValue)) {
+            order = createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, minValue);
+        }
+        //空头突破
+        else if (lt(latestPrice, minValue)) {
+            order = createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, maxValue);
+        }
+        return order;
+    }
+
 
     /**
      * 获取开仓锁
@@ -332,6 +364,42 @@ public class DoubleMovingAverageStrategyService {
             return true;
         }
         return false;
+    }
+
+    /**
+     * 检测是否形成突破趋势排列
+     **/
+    private boolean isBreakoutTrend(DoubleMovingAverageData data, BigDecimal latestPrice) {
+        //多头突破
+        if (gt(latestPrice, data.getMa144()) &&
+                gt(latestPrice, data.getEma144()) &&
+
+                gt(data.getMa144(), data.getMa55()) &&
+                gt(data.getMa144(), data.getEma55()) &&
+                gt(data.getMa144(), data.getMa21()) &&
+                gt(data.getMa144(), data.getEma21()) &&
+
+                gt(data.getEma144(), data.getMa55()) &&
+                gt(data.getEma144(), data.getEma55()) &&
+                gt(data.getEma144(), data.getMa21()) &&
+                gt(data.getEma144(), data.getEma21())
+
+        ) {
+            return true;
+        }
+        //空头突破
+        return lt(latestPrice, data.getMa144()) &&
+                lt(latestPrice, data.getEma144()) &&
+
+                lt(data.getMa144(), data.getMa55()) &&
+                lt(data.getMa144(), data.getEma55()) &&
+                lt(data.getMa144(), data.getMa21()) &&
+                lt(data.getMa144(), data.getEma21()) &&
+
+                lt(data.getEma144(), data.getMa55()) &&
+                lt(data.getEma144(), data.getEma55()) &&
+                lt(data.getEma144(), data.getMa21()) &&
+                lt(data.getEma144(), data.getEma21());
     }
 
     /**
