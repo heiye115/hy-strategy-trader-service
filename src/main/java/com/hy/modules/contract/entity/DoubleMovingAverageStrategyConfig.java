@@ -52,12 +52,12 @@ public class DoubleMovingAverageStrategyConfig {
     private BigDecimal openAmount;
 
     /**
-     * 当前价与MA144均线偏离百分比 例如: 1.0% 表示当前价距离MA144上涨或下跌超过百分之一
+     * 当前价与最高均线价或最低均线价偏离百分比 例如: 1.0% 表示当前价距离最高或最低均线上涨或下跌超过百分之1
      * 用于动态止盈
      **/
-    private BigDecimal deviationFromMA144;
+    private BigDecimal deviationFromMA;
 
-    public DoubleMovingAverageStrategyConfig(Boolean enable, String symbol, String timeFrame, Integer volumePlace, Integer pricePlace, Integer maxLeverage, BigDecimal openAmount, BigDecimal deviationFromMA144) {
+    public DoubleMovingAverageStrategyConfig(Boolean enable, String symbol, String timeFrame, Integer volumePlace, Integer pricePlace, Integer maxLeverage, BigDecimal openAmount, BigDecimal deviationFromMA) {
         this.enable = enable;
         this.symbol = symbol;
         this.timeFrame = timeFrame;
@@ -65,6 +65,6 @@ public class DoubleMovingAverageStrategyConfig {
         this.pricePlace = pricePlace;
         this.maxLeverage = maxLeverage;
         this.openAmount = openAmount;
-        this.deviationFromMA144 = deviationFromMA144;
+        this.deviationFromMA = deviationFromMA;
     }
 }

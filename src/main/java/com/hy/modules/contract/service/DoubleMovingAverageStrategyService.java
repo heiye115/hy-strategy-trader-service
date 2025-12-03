@@ -105,11 +105,16 @@ public class DoubleMovingAverageStrategyService {
      * 百分比计算常量
      **/
     private final static BigDecimal SPREAD_RATE = new BigDecimal("0.8");
-        
+
     /**
      * 中间价偏离度 (0.3%)
      **/
     private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.3");
+
+    /**
+     * 动态止盈系数增量单位 (1% = 0.01)
+     **/
+    private final static BigDecimal COEFFICIENT_INCREMENT_UNIT = new BigDecimal("0.01");
 
 
     /**
@@ -117,8 +122,8 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M15.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(3.0)));
-            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.M15.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(5.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M15.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(5.0)));
+            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.M15.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(10.0)));
             put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
             put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(30.0)));
             put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(30.0)));
@@ -235,7 +240,7 @@ public class DoubleMovingAverageStrategyService {
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
                     if (rs.getData().size() < 500) return;
                     BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(config.getTimeFrame())).getDuration());
-                    DoubleMovingAverageData data = calculateIndicators(barSeries);
+                    DoubleMovingAverageData data = calculateIndicators(barSeries, config.getPricePlace());
                     DMAS_CACHE.put(config.getSymbol(), data);
                 } catch (Exception e) {
                     log.error("doubleMovingAverageDataMonitoring-error:{}", config.getSymbol(), e);
@@ -683,7 +688,7 @@ public class DoubleMovingAverageStrategyService {
      * 计算最新双均线指标
      * MA21 , EMA21 ,MA55 , EMA55, MA144 , EMA144
      **/
-    public static DoubleMovingAverageData calculateIndicators(BarSeries series) {
+    public static DoubleMovingAverageData calculateIndicators(BarSeries series, Integer pricePlace) {
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
         Indicator<Num> ma21 = new SMAIndicator(closePrice, 21);
         Indicator<Num> ema21 = new EMAIndicator(closePrice, 21);
@@ -693,12 +698,12 @@ public class DoubleMovingAverageStrategyService {
         Indicator<Num> ema144 = new EMAIndicator(closePrice, 144);
         int endIndex = series.getEndIndex();
         return new DoubleMovingAverageData(
-                ma21.getValue(endIndex).bigDecimalValue(),
-                ma55.getValue(endIndex).bigDecimalValue(),
-                ma144.getValue(endIndex).bigDecimalValue(),
-                ema21.getValue(endIndex).bigDecimalValue(),
-                ema55.getValue(endIndex).bigDecimalValue(),
-                ema144.getValue(endIndex).bigDecimalValue());
+                ma21.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
+                ma55.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
+                ma144.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
+                ema21.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
+                ema55.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
+                ema144.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP));
     }
 
 
@@ -789,69 +794,162 @@ public class DoubleMovingAverageStrategyService {
                 BigDecimal latestPrice = BTR_CACHE.get(config.getSymbol());
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
-                //仓位盈亏平衡价
-                BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
 
-                // 计算动态止赢价（基于 ma144 与 latestPrice）
-                BigDecimal stopProfitPrice = BigDecimal.ZERO;
-                BigDecimal ma144 = data.getMa144();
-                //计算涨跌幅百分比
-                BigDecimal change = calculateChangePercent(ma144, latestPrice).abs();
-                boolean isStopProfit = gt(change, config.getDeviationFromMA144());
-                BigDecimal coefficient = SPREAD_RATE;
-                if (isStopProfit) {
-                    coefficient = coefficient.add(change.subtract(config.getDeviationFromMA144()).multiply(BigDecimal.valueOf(0.01))).min(BigDecimal.ONE);
-                }
-                if (gt(latestPrice, ma144) && isStopProfit) {
-                    BigDecimal spread = latestPrice.subtract(ma144).multiply(coefficient);
-                    stopProfitPrice = ma144.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                } else if (lt(latestPrice, ma144) && isStopProfit) {
-                    BigDecimal spread = ma144.subtract(latestPrice).multiply(coefficient);
-                    stopProfitPrice = ma144.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
-                }
+                // 计算动态止盈价（基于持仓方向）
+                BigDecimal stopProfitPrice = calculateDynamicStopProfitPrice(latestPrice, data, config, position.getHoldSide());
 
+                // 获取当前委托订单
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;
 
-                for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
-                    try {
-                        if (!BG_PLAN_TYPE_LOSS_PLAN.equals(order.getPlanType())) continue;
-                        BigDecimal triggerPrice = new BigDecimal(Optional.ofNullable(order.getTriggerPrice()).orElse("0"));
-                        String side = order.getSide();
-                        //做多 sell 卖
-                        if (BG_SIDE_SELL.equals(side)) {
-                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
-                            if (gt(data.getMin144Value(), breakEvenPrice)) {
-                                newTriggerPrice = data.getMin144Value();
-                            }
-                            if (gt(stopProfitPrice, BigDecimal.ZERO) && lt(triggerPrice, stopProfitPrice) && gt(stopProfitPrice, newTriggerPrice)) {
-                                newTriggerPrice = stopProfitPrice;
-                            }
-                            if (ne(triggerPrice, newTriggerPrice) && gt(newTriggerPrice, triggerPrice)) {
-                                modifyStopLossOrder(order, newTriggerPrice);
-                            }
-                        }
-                        //做空 buy 买
-                        else if (BG_SIDE_BUY.equals(side)) {
-                            BigDecimal newTriggerPrice = BigDecimal.ZERO;
-                            if (lt(data.getMax144Value(), breakEvenPrice)) {
-                                newTriggerPrice = data.getMax144Value();
-                            }
-                            if (gt(stopProfitPrice, BigDecimal.ZERO) && gt(triggerPrice, stopProfitPrice) && lt(stopProfitPrice, newTriggerPrice)) {
-                                newTriggerPrice = stopProfitPrice;
-                            }
-                            if (ne(triggerPrice, newTriggerPrice) && lt(newTriggerPrice, triggerPrice) && gt(newTriggerPrice, BigDecimal.ZERO)) {
-                                modifyStopLossOrder(order, newTriggerPrice);
-                            }
-                        }
-                    } catch (Exception inner) {
-                        log.error("updateTpslPlans: 单个委托处理失败 symbol={}, orderId={}, error={}", symbol, order.getOrderId(), inner.getMessage());
-                    }
-                }
+                // 更新止损订单
+                updateStopLossOrders(entrustedOrders, data, stopProfitPrice);
             } catch (Exception e) {
-                log.error("updateTpslPlans-error", e);
+                log.error("updateTpslPlans-error: symbol={}", symbol, e);
             }
         });
+    }
+
+    /**
+     * 计算动态止盈价
+     * 根据当前价格与开仓止损价的偏离度动态调整止盈位置
+     *
+     * @param latestPrice 最新价格
+     * @param data        双均线数据
+     * @param config      策略配置
+     * @param holdSide    持仓方向 ("long" 多头 / "short" 空头)
+     * @return 动态止盈价，如果不满足条件则返回ZERO
+     */
+    private BigDecimal calculateDynamicStopProfitPrice(BigDecimal latestPrice, DoubleMovingAverageData data,
+                                                       DoubleMovingAverageStrategyConfig config, String holdSide) {
+        BigDecimal maxValue = data.getMaxValue();
+        BigDecimal minValue = data.getMinValue();
+
+        // 多头持仓: 价格上涨时计算动态止盈
+        if (BG_HOLD_SIDE_LONG.equals(holdSide)) {
+            // 价格需要高于初始止损价(minValue)才有盈利空间
+            if (gt(latestPrice, minValue)) {
+                return calculateStopProfitForLong(latestPrice, minValue, config);
+            }
+        }
+        // 空头持仓: 价格下跌时计算动态止盈
+        else if (BG_HOLD_SIDE_SHORT.equals(holdSide)) {
+            // 价格需要低于初始止损价(maxValue)才有盈利空间
+            if (lt(latestPrice, maxValue)) {
+                return calculateStopProfitForShort(latestPrice, maxValue, config);
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    /**
+     * 计算多头动态止盈价
+     */
+    private BigDecimal calculateStopProfitForLong(BigDecimal latestPrice, BigDecimal basePrice, DoubleMovingAverageStrategyConfig config) {
+        BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
+        // 价格偏离度未达到阈值，不计算止盈
+        if (lte(priceChangePercent, config.getDeviationFromMA())) {
+            return BigDecimal.ZERO;
+        }
+        // 计算动态系数: 基础系数 + (偏离度 - 阈值) * 0.01，最大为1.0
+        BigDecimal dynamicCoefficient = SPREAD_RATE
+                .add(priceChangePercent.subtract(config.getDeviationFromMA()).multiply(COEFFICIENT_INCREMENT_UNIT))
+                .min(BigDecimal.ONE);
+        // 止盈价 = 基础价 + 价差 * 动态系数
+        BigDecimal spread = latestPrice.subtract(basePrice).multiply(dynamicCoefficient);
+        return basePrice.add(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 计算空头动态止盈价
+     */
+    private BigDecimal calculateStopProfitForShort(BigDecimal latestPrice, BigDecimal basePrice, DoubleMovingAverageStrategyConfig config) {
+        BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
+        // 价格偏离度未达到阈值，不计算止盈
+        if (lte(priceChangePercent, config.getDeviationFromMA())) {
+            return BigDecimal.ZERO;
+        }
+        // 计算动态系数: 基础系数 + (偏离度 - 阈值) * 0.01，最大为1.0
+        BigDecimal dynamicCoefficient = SPREAD_RATE
+                .add(priceChangePercent.subtract(config.getDeviationFromMA()).multiply(COEFFICIENT_INCREMENT_UNIT))
+                .min(BigDecimal.ONE);
+        // 止盈价 = 基础价 - 价差 * 动态系数
+        BigDecimal spread = basePrice.subtract(latestPrice).multiply(dynamicCoefficient);
+        return basePrice.subtract(spread).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 更新止损订单
+     */
+    private void updateStopLossOrders(List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders,
+                                      DoubleMovingAverageData data,
+                                      BigDecimal stopProfitPrice) {
+        for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
+            try {
+                // 仅处理止损计划订单
+                if (!BG_PLAN_TYPE_LOSS_PLAN.equals(order.getPlanType())) continue;
+
+                BigDecimal triggerPrice = new BigDecimal(Optional.ofNullable(order.getTriggerPrice()).orElse("0"));
+                String side = order.getSide();
+
+                // 做多止损 (SELL)
+                if (BG_SIDE_SELL.equals(side)) {
+                    updateLongStopLoss(order, triggerPrice, data.getMinValue(), stopProfitPrice);
+                }
+                // 做空止损 (BUY)
+                else if (BG_SIDE_BUY.equals(side)) {
+                    updateShortStopLoss(order, triggerPrice, data.getMaxValue(), stopProfitPrice);
+                }
+            } catch (Exception inner) {
+                log.error("updateStopLossOrders: 单个委托处理失败 orderId={}, error={}", order.getOrderId(), inner.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 更新多头止损价
+     * 止损价向上移动策略: 取 max(最低价, 动态止盈价)
+     */
+    private void updateLongStopLoss(BitgetOrdersPlanPendingResp.EntrustedOrder order,
+                                    BigDecimal currentTriggerPrice,
+                                    BigDecimal minValue,
+                                    BigDecimal stopProfitPrice) {
+        BigDecimal newTriggerPrice = minValue;
+
+        // 如果动态止盈价有效且更优，则使用动态止盈价
+        if (gt(stopProfitPrice, BigDecimal.ZERO)
+                && lt(currentTriggerPrice, stopProfitPrice)
+                && gt(stopProfitPrice, newTriggerPrice)) {
+            newTriggerPrice = stopProfitPrice;
+        }
+
+        // 仅当新触发价更高时才更新 (止损向上移动)
+        if (gt(newTriggerPrice, currentTriggerPrice)) {
+            modifyStopLossOrder(order, newTriggerPrice);
+        }
+    }
+
+    /**
+     * 更新空头止损价
+     * 止损价向下移动策略: 取 min(最高价, 动态止盈价)
+     */
+    private void updateShortStopLoss(BitgetOrdersPlanPendingResp.EntrustedOrder order,
+                                     BigDecimal currentTriggerPrice,
+                                     BigDecimal maxValue,
+                                     BigDecimal stopProfitPrice) {
+        BigDecimal newTriggerPrice = maxValue;
+
+        // 如果动态止盈价有效且更优，则使用动态止盈价
+        if (gt(stopProfitPrice, BigDecimal.ZERO)
+                && gt(currentTriggerPrice, stopProfitPrice)
+                && lt(stopProfitPrice, newTriggerPrice)) {
+            newTriggerPrice = stopProfitPrice;
+        }
+
+        // 仅当新触发价更低且有效时才更新 (止损向下移动)
+        if (lt(newTriggerPrice, currentTriggerPrice) && gt(newTriggerPrice, BigDecimal.ZERO)) {
+            modifyStopLossOrder(order, newTriggerPrice);
+        }
     }
 
 
