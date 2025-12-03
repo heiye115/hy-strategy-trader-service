@@ -456,11 +456,11 @@ public class DoubleMovingAverageStrategyService {
                 // ⚡ 2. 震荡市场过滤（核心风控逻辑）
                 // 重要：ADR过滤器关闭会导致胜率从58%跌至41%，月期望收益从+48%跌至-295%
                 // 统计显著性检验表明：关闭ADR会导致95%置信度的负期望
-                BarSeries series = BAR_SERIES_CACHE.get(symbol);
-                if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
-                    //log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
-                    return; // 震荡市场，直接跳过
-                }
+//                BarSeries series = BAR_SERIES_CACHE.get(symbol);
+//                if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
+//                    //log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
+//                    return; // 震荡市场，直接跳过
+//                }
 
                 DoubleMovingAveragePlaceOrder order = null;
 
@@ -737,12 +737,14 @@ public class DoubleMovingAverageStrategyService {
         order.setLeverage(actualLeverage);
         // 止盈数量 默认50%
         order.setTakeProfitSize(size.multiply(BigDecimal.valueOf(0.5)).setScale(conf.getVolumePlace(), RoundingMode.HALF_UP).toPlainString());
-        //止盈价 盈亏比 1:1
+        //止盈价 盈亏比 1.5:1
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
         if (BG_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
-            takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            // 多头止盈：开仓价 + (开仓价 - 止损价) × 1.5
+            takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
         } else if (BG_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
-            takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            // 空头止盈：开仓价 - (止损价 - 开仓价) × 1.5
+            takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
         }
         order.setTakeProfitPrice(takeProfitPrice.toPlainString());
         return order;
