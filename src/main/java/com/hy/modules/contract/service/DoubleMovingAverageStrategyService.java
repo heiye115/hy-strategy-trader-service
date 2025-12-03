@@ -1,5 +1,6 @@
 package com.hy.modules.contract.service;
 
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
 import com.bitget.openapi.dto.request.ws.SubscribeReq;
@@ -81,9 +82,10 @@ public class DoubleMovingAverageStrategyService {
     private final static Map<String, DoubleMovingAverageData> DMAS_CACHE = new ConcurrentHashMap<>();
 
     /**
-     * Bitget行情数据缓存
+     * 最新价格缓存
+     * 存储每个交易对的最新市场价格，用于信号检测和订单构建
      **/
-    private final static Map<String, BigDecimal> BTR_CACHE = new ConcurrentHashMap<>();
+    private final static Map<String, BigDecimal> LATEST_PRICE_CACHE = new ConcurrentHashMap<>();
 
     /**
      * 订单队列 - 存储待执行的订单参数
@@ -290,7 +292,7 @@ public class DoubleMovingAverageStrategyService {
      * true = 没有仓位，可以开单
      * false = 有仓位，禁止开单
      */
-    private final Map<String, AtomicBoolean> allowOpenByPosition = new ConcurrentHashMap<>();
+    private final Map<String, AtomicBoolean> canOpenPositionMap = new ConcurrentHashMap<>();
 
     /**
      * 开单并发锁（true = 空闲，可以开单；false = 冷却中）
@@ -320,8 +322,8 @@ public class DoubleMovingAverageStrategyService {
         initializeBitgetAccount();
         //启动下单消费者
         startOrderConsumer();
-        //WS行情数据监控
-        marketDataWSMonitoring();
+        //通过WebSocket订阅行情数据
+        subscribeMarketDataViaWebSocket();
         log.info("双均线策略加载完成, 当前配置: {}", JsonUtil.toJson(CONFIG_MAP));
     }
 
@@ -383,10 +385,10 @@ public class DoubleMovingAverageStrategyService {
 
 
     /**
-     * 双均线数据监控
-     * 增强版：同时缓存BarSeries用于震荡过滤计算
+     * 更新双均线指标数据
+     * 计算并缓存MA/EMA指标，同时缓存BarSeries用于震荡过滤计算
      **/
-    public void doubleMovingAverageDataMonitoring() {
+    public void updateDoubleMovingAverageIndicators() {
         for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
             taskExecutor.execute(() -> {
                 try {
@@ -396,7 +398,7 @@ public class DoubleMovingAverageStrategyService {
                     // 建议改为更友好的错误处理
                     BitgetEnum bitgetEnum = BitgetEnum.getByCode(config.getTimeFrame());
                     if (bitgetEnum == null) {
-                        log.error("doubleMovingAverageDataMonitoring: 未知的时间周期, symbol={}, timeFrame={}", config.getSymbol(), config.getTimeFrame());
+                        log.error("updateDoubleMovingAverageIndicators: 未知的时间周期, symbol={}, timeFrame={}", config.getSymbol(), config.getTimeFrame());
                         return;
                     }
                     BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), bitgetEnum.getDuration());
@@ -408,52 +410,54 @@ public class DoubleMovingAverageStrategyService {
                     BAR_SERIES_CACHE.put(config.getSymbol(), barSeries);
 
                 } catch (Exception e) {
-                    log.error("doubleMovingAverageDataMonitoring-error:{}", config.getSymbol(), e);
+                    log.error("updateDoubleMovingAverageIndicators-error:{}", config.getSymbol(), e);
                 }
             });
         }
     }
 
     /**
-     * 行情数据监控
+     * 刷新市场价格缓存
+     * 通过REST API获取最新价格并更新缓存
      */
-    public void marketDataMonitoring() {
+    public void refreshMarketPriceCache() {
         for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
             taskExecutor.execute(() -> {
                 try {
                     ResponseResult<List<BitgetMixMarketTickerResp>> rs = bitgetSession.getMixMarketTicker(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES);
                     if (rs.getData() == null || rs.getData().isEmpty()) return;
-                    BTR_CACHE.put(config.getSymbol(), new BigDecimal(rs.getData().getFirst().getLastPr()));
+                    LATEST_PRICE_CACHE.put(config.getSymbol(), new BigDecimal(rs.getData().getFirst().getLastPr()));
                 } catch (Exception e) {
-                    log.error("marketDataMonitoring-error:{}", config.getSymbol(), e);
+                    log.error("refreshMarketPriceCache-error:{}", config.getSymbol(), e);
                 }
             });
         }
     }
 
     /**
-     * 双均线策略信号下单监控
+     * 检测交易信号并入队
      * 增强版：集成ADR震荡过滤器，有效过滤70%的震荡假信号
+     * 流程：检测信号 → 构建订单 → 入队处理
      */
-    public void signalOrderMonitoring() {
+    public void detectAndEnqueueTradingSignals() {
         try {
-            if (DMAS_CACHE.isEmpty() || BTR_CACHE.isEmpty()) return;
+            if (DMAS_CACHE.isEmpty() || LATEST_PRICE_CACHE.isEmpty()) return;
 
             DMAS_CACHE.forEach((symbol, data) -> {
                 DoubleMovingAverageStrategyConfig conf = CONFIG_MAP.get(symbol);
-                if (!conf.getEnable() || !BTR_CACHE.containsKey(conf.getSymbol())) return;
+                if (!conf.getEnable() || !LATEST_PRICE_CACHE.containsKey(conf.getSymbol())) return;
 
                 // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
-                AtomicBoolean allowOpen = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
+                AtomicBoolean allowOpen = canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) return;
 
-                BigDecimal latestPrice = BTR_CACHE.get(conf.getSymbol());
+                BigDecimal latestPrice = LATEST_PRICE_CACHE.get(conf.getSymbol());
 
                 // ⚡ 2. 震荡市场过滤（新增核心逻辑）
                 BarSeries series = BAR_SERIES_CACHE.get(symbol);
                 if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
                     log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
-                    return; // 震荡市场，直接跳过
+                    //return; // 震荡市场，直接跳过
                 }
 
                 DoubleMovingAveragePlaceOrder order = null;
@@ -471,23 +475,23 @@ public class DoubleMovingAverageStrategyService {
                 // 5. 订单入队处理
                 if (order != null && tryAcquireOpenLock(symbol)) {
                     // 获取用于写入的 allowOpen 对象（如果之前不存在，则认为允许开单）
-                    AtomicBoolean allowOpenForSet = allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(true));
+                    AtomicBoolean allowOpenForSet = canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(true));
                     if (ORDER_QUEUE.offer(order)) {
                         // 成功入队后再禁止该 symbol 继续开单
                         allowOpenForSet.set(false);
-                        log.info("signalOrderMonitoring:检测到双均线交易信号，已放入下单队列，order:{}", JsonUtil.toJson(order));
+                        log.info("detectAndEnqueueTradingSignals:检测到双均线交易信号，已放入下单队列，order:{}", JsonUtil.toJson(order));
                     } else {
                         // 入队失败，立即释放开单锁，允许快速重试
                         AtomicBoolean lock = openLockMap.get(symbol);
                         if (lock != null) {
                             lock.set(true);
                         }
-                        log.warn("signalOrderMonitoring: 下单队列已满，放入失败，symbol={}", symbol);
+                        log.warn("detectAndEnqueueTradingSignals: 下单队列已满，放入失败，symbol={}", symbol);
                     }
                 }
             });
         } catch (Exception e) {
-            log.error("signalOrderMonitoring-error", e);
+            log.error("detectAndEnqueueTradingSignals-error", e);
         }
     }
 
@@ -819,7 +823,8 @@ public class DoubleMovingAverageStrategyService {
                 return;
             }
             // 设置仓位止盈
-            setPlaceTpslOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide(), BG_PLAN_TYPE_PROFIT_PLAN);
+            placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide(), BG_PLAN_TYPE_PROFIT_PLAN);
+            sendEmail(DateUtil.now() + "双均线策略下单成功", "订单信息: " + JsonUtil.toJson(orderParam));
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult), e);
         }
@@ -827,8 +832,9 @@ public class DoubleMovingAverageStrategyService {
 
     /**
      * 设置止盈止损计划委托下单
+     * 创建计划委托订单，当价格触发时自动执行止盈或止损
      */
-    public void setPlaceTpslOrder(String symbol, String triggerPrice, String executePrice, String size, String holdSide, String planType) {
+    public void placeTakeProfitStopLossOrder(String symbol, String triggerPrice, String executePrice, String size, String holdSide, String planType) {
         BitgetPlaceTpslOrderParam param = new BitgetPlaceTpslOrderParam();
         param.setClientOid(IdUtil.getSnowflakeNextIdStr());
         param.setMarginCoin(DEFAULT_CURRENCY_USDT);
@@ -847,12 +853,12 @@ public class DoubleMovingAverageStrategyService {
         try {
             ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetSession.placeTpslOrder(param);
             if (rs == null) {
-                log.error("setPlaceTpslOrder: 设置止盈止损委托计划失败, param: {}", JsonUtil.toJson(param));
+                log.error("placeTakeProfitStopLossOrder: 设置止盈止损委托计划失败, param: {}", JsonUtil.toJson(param));
                 return;
             }
-            log.info("setPlaceTpslOrder: 设置止盈止损委托计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(rs));
+            log.info("placeTakeProfitStopLossOrder: 设置止盈止损委托计划成功, param: {}, result: {}", JsonUtil.toJson(param), JsonUtil.toJson(rs));
         } catch (Exception e) {
-            log.error("setPlaceTpslOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", JsonUtil.toJson(param), e.getMessage());
+            log.error("placeTakeProfitStopLossOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", JsonUtil.toJson(param), e.getMessage());
         }
     }
 
@@ -941,9 +947,10 @@ public class DoubleMovingAverageStrategyService {
 
 
     /**
-     * WS行情数据监控
+     * 通过WebSocket订阅市场数据
+     * 建立WebSocket连接，实时接收市场价格变动并更新缓存
      */
-    public void marketDataWSMonitoring() {
+    public void subscribeMarketDataViaWebSocket() {
         List<SubscribeReq> list = new ArrayList<>();
         for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
             list.add(SubscribeReq.builder().instType(BG_PRODUCT_TYPE_USDT_FUTURES).channel(BG_CHANNEL_TICKER).instId(config.getSymbol()).build());
@@ -956,12 +963,12 @@ public class DoubleMovingAverageStrategyService {
                         BitgetWSMarketResp marketResp = JsonUtil.toBean(data, BitgetWSMarketResp.class);
                         if (marketResp.getData() != null && !marketResp.getData().isEmpty()) {
                             BitgetWSMarketResp.MarketInfo info = marketResp.getData().getFirst();
-                            BTR_CACHE.put(info.getSymbol(), new BigDecimal(info.getLastPr()));
+                            LATEST_PRICE_CACHE.put(info.getSymbol(), new BigDecimal(info.getLastPr()));
                         }
                     }
                 });
             } catch (Exception e) {
-                log.error("marketDataWSMonitoring-error:", e);
+                log.error("subscribeMarketDataViaWebSocket-error:", e);
             }
         });
     }
@@ -977,7 +984,7 @@ public class DoubleMovingAverageStrategyService {
             // 根据仓位更新是否允许开单
             CONFIG_MAP.keySet().forEach(symbol -> {
                 boolean hasPosition = positionMap.containsKey(symbol);
-                allowOpenByPosition.computeIfAbsent(symbol, k -> new AtomicBoolean(false)).set(!hasPosition);
+                canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(false)).set(!hasPosition);
             });
 
             // 必须有仓位才能执行后续操作
@@ -987,7 +994,7 @@ public class DoubleMovingAverageStrategyService {
             Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
             //log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
-            updateTpslPlans(positionMap, entrustedOrdersMap);
+            updateTakeProfitStopLossPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {
             log.error("managePositions-error", e);
         }
@@ -995,8 +1002,9 @@ public class DoubleMovingAverageStrategyService {
 
     /**
      * 更新止盈止损计划
+     * 根据持仓信息和当前价格动态调整止盈止损订单
      **/
-    public void updateTpslPlans(Map<String, BitgetAllPositionResp> positionMap, Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap) {
+    public void updateTakeProfitStopLossPlans(Map<String, BitgetAllPositionResp> positionMap, Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap) {
         if (positionMap == null || positionMap.isEmpty()) return;
         if (entrustedOrdersMap == null || entrustedOrdersMap.isEmpty()) return;
 
@@ -1005,7 +1013,7 @@ public class DoubleMovingAverageStrategyService {
                 DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
                 if (config == null) return;
 
-                BigDecimal latestPrice = BTR_CACHE.get(config.getSymbol());
+                BigDecimal latestPrice = LATEST_PRICE_CACHE.get(config.getSymbol());
                 DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
@@ -1019,7 +1027,7 @@ public class DoubleMovingAverageStrategyService {
                 // 更新止损订单
                 updateStopLossOrders(entrustedOrders, data, stopProfitPrice);
             } catch (Exception e) {
-                log.error("updateTpslPlans-error: symbol={}", symbol, e);
+                log.error("updateTakeProfitStopLossPlans-error: symbol={}", symbol, e);
             }
         });
     }

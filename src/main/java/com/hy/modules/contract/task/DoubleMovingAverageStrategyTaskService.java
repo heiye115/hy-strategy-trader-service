@@ -24,46 +24,47 @@ public class DoubleMovingAverageStrategyTaskService {
     @PostConstruct
     public void init() {
         //启动时执行一次
-        doubleMovingAverageDataMonitoring();
+        updateDoubleMovingAverageIndicators();
         doubleMovingAverageStrategyService.init();
     }
 
     /**
-     * 双均线数据监控
+     * 更新双均线指标数据
      * 每五分钟执行一次
      **/
     @Scheduled(cron = "0 */5 * * * ?")
-    public void doubleMovingAverageDataMonitoring() {
+    public void updateDoubleMovingAverageIndicators() {
         try {
-            doubleMovingAverageStrategyService.doubleMovingAverageDataMonitoring();
+            doubleMovingAverageStrategyService.updateDoubleMovingAverageIndicators();
         } catch (Exception e) {
-            log.error("doubleMovingAverageDataMonitoring-error", e);
+            log.error("updateDoubleMovingAverageIndicators-error", e);
         }
     }
 
     /**
-     * 行情数据监控 每5秒执行一次
+     * 刷新市场价格缓存
+     * 每5秒执行一次
      **/
     @Scheduled(fixedRate = 5000)
-    public void marketDataMonitoring() {
+    public void refreshMarketPriceCache() {
         try {
-            doubleMovingAverageStrategyService.marketDataMonitoring();
+            doubleMovingAverageStrategyService.refreshMarketPriceCache();
         } catch (Exception e) {
-            log.error("marketDataMonitoring-error", e);
+            log.error("refreshMarketPriceCache-error", e);
         }
     }
 
     /**
-     * 双均线策略信号下单监控
+     * 检测交易信号并入队
      * 每500毫秒执行一次
      * 即使上次没执行完，调度器也会按时间启动新任务（可能重叠）
      **/
     @Scheduled(fixedRate = 500)
-    public void signalOrderMonitoring() {
+    public void detectAndEnqueueTradingSignals() {
         try {
-            doubleMovingAverageStrategyService.signalOrderMonitoring();
+            doubleMovingAverageStrategyService.detectAndEnqueueTradingSignals();
         } catch (Exception e) {
-            log.error("signalOrderMonitoring-error", e);
+            log.error("detectAndEnqueueTradingSignals-error", e);
         }
     }
 

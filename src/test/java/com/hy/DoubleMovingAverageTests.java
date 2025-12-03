@@ -1,5 +1,6 @@
 package com.hy;
 
+import cn.hutool.core.date.DateUtil;
 import com.bitget.custom.entity.BitgetMixMarketCandlesResp;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.hy.common.enums.BitgetAccountType;
@@ -47,8 +48,12 @@ public class DoubleMovingAverageTests {
         if (rs.getData() == null || rs.getData().isEmpty()) return;
         if (rs.getData().size() < 500) return;
         BarSeries barSeries = DoubleMovingAverageStrategyService.buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(timeFrame)).getDuration());
-        DoubleMovingAverageData data = DoubleMovingAverageStrategyService.calculateIndicators(barSeries);
+        DoubleMovingAverageData data = DoubleMovingAverageStrategyService.calculateIndicators(barSeries, 2);
         System.out.println(JsonUtil.toJson(data));
         System.out.println(doubleMovingAverageStrategyService.isStrictMATrendConfirmed(data));
+    }
+
+    public static void main(String[] args) {
+        System.out.println(DateUtil.now());
     }
 }
