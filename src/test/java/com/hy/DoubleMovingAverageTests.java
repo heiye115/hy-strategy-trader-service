@@ -8,6 +8,7 @@ import com.hy.common.enums.BitgetEnum;
 import com.hy.common.service.BitgetCustomService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.DoubleMovingAverageData;
+import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
 import com.hy.modules.contract.service.DoubleMovingAverageStrategyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,16 @@ public class DoubleMovingAverageTests {
         DoubleMovingAverageData data = DoubleMovingAverageStrategyService.calculateIndicators(barSeries, 2);
         System.out.println(JsonUtil.toJson(data));
         System.out.println(doubleMovingAverageStrategyService.isStrictMATrendConfirmed(data));
+    }
+
+
+    @Test
+    public void testEamil() throws IOException {
+        DoubleMovingAveragePlaceOrder order = JsonUtil.toBean("{\"clientOid\":\"1996403203935412224\",\"symbol\":\"HYPEUSDT\",\"size\":\"1.95\",\"side\":\"buy\",\"orderType\":\"market\",\"marginMode\":\"isolated\",\"stopLossPrice\":\"32.590\",\"takeProfitPrice\":\"40.810\",\"takeProfitSize\":\"0.98\",\"accountBalance\":76.61968933,\"leverage\":7}", DoubleMovingAveragePlaceOrder.class);
+        String html = doubleMovingAverageStrategyService.buildOrderEmailContent(order);
+        // 发送HTML格式的邮件通知
+        doubleMovingAverageStrategyService.sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", html);
+
     }
 
     public static void main(String[] args) {
