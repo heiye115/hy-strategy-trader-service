@@ -1327,6 +1327,7 @@ public class DoubleMovingAverageStrategyService {
         String actualSizeText = "";
         String feeText = "";
         String actualDataRows = "";
+        String orderStateText = "";
 
         if (hasRealData) {
             // 成交均价
@@ -1348,6 +1349,16 @@ public class DoubleMovingAverageStrategyService {
                         actualSizeText
                 );
             }
+            
+            // 成交金额（USDT总额）
+            if (orderDetail.getQuoteVolume() != null && !"0".equals(orderDetail.getQuoteVolume())) {
+                BigDecimal quoteVolume = new BigDecimal(orderDetail.getQuoteVolume());
+                actualDataRows += String.format(
+                        "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>成交金额</td>" +
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #8b5cf6;'>%s USDT</td></tr>",
+                        quoteVolume.setScale(2, RoundingMode.HALF_UP)
+                );
+            }
 
             // 手续费
             if (orderDetail.getFee() != null) {
@@ -1357,6 +1368,47 @@ public class DoubleMovingAverageStrategyService {
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>手续费</td>" +
                                 "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%s USDT</td></tr>",
                         feeAmount.setScale(4, RoundingMode.HALF_UP)
+                );
+            }
+            
+            // 订单状态
+            if (orderDetail.getState() != null) {
+                String state = orderDetail.getState();
+                String stateColor = "#6b7280";
+                String stateIcon = "";
+                String stateLabel = "";
+                
+                switch (state) {
+                    case "filled":
+                        stateLabel = "全部成交";
+                        stateColor = "#10b981";
+                        stateIcon = "✅";
+                        break;
+                    case "partially_filled":
+                        stateLabel = "部分成交";
+                        stateColor = "#f59e0b";
+                        stateIcon = "⏳";
+                        break;
+                    case "live":
+                        stateLabel = "等待成交";
+                        stateColor = "#3b82f6";
+                        stateIcon = "🔵";
+                        break;
+                    case "canceled":
+                        stateLabel = "已撤销";
+                        stateColor = "#ef4444";
+                        stateIcon = "❌";
+                        break;
+                    default:
+                        stateLabel = state;
+                        stateIcon = "ℹ️";
+                }
+                
+                orderStateText = String.format(
+                        "<div style='text-align: center; margin-top: 10px;'>" +
+                                "<span style='display: inline-block; padding: 6px 16px; background-color: %s; color: #ffffff; border-radius: 12px; font-size: 13px; font-weight: 600;'>%s %s</span>" +
+                                "</div>",
+                        stateColor, stateIcon, stateLabel
                 );
             }
         }
@@ -1389,11 +1441,18 @@ public class DoubleMovingAverageStrategyService {
             BigDecimal rewardAmount;
 
             if (isBuy) {
-                riskAmount = currentPrice.subtract(stopLoss);
-                rewardAmount = takeProfit.subtract(currentPrice);
+                riskAmount = currentPrice.subtract(stopLoss);       // 开仓价 - 止损价
+                rewardAmount = takeProfit.subtract(currentPrice);   // 止盈价 - 开仓价
             } else {
-                riskAmount = stopLoss.subtract(currentPrice);
-                rewardAmount = currentPrice.subtract(takeProfit);
+                riskAmount = stopLoss.subtract(currentPrice);      // 止损价 - 开仓价
+                rewardAmount = currentPrice.subtract(takeProfit);  // 开仓价 - 止盈价
+            }
+            
+            // 安全检查：确保风险和收益为正数
+            if (riskAmount.compareTo(BigDecimal.ZERO) <= 0 || rewardAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("buildOrderEmailContent: 盈亏比计算异常，风险={}, 收益={}, 开仓价={}, 止损={}, 止盈={}, 方向={}",
+                        riskAmount, rewardAmount, currentPrice, stopLoss, takeProfit, isBuy ? "LONG" : "SHORT");
+                return ""; // 跳过盈亏比计算
             }
 
             // 计算实际USDT金额（风险/收益 × 成交数量）
@@ -1455,6 +1514,7 @@ public class DoubleMovingAverageStrategyService {
                         "            <span style='display: inline-block; padding: 10px 24px; background-color: %s; color: #ffffff; border-radius: 20px; font-size: 18px; font-weight: 700;'>" +
                         "                %s %s" +
                         "            </span>" +
+                        "            %s" +
                         "        </div>" +
                         "        " +
                         "        <!-- 交易对信息 -->" +
@@ -1493,10 +1553,11 @@ public class DoubleMovingAverageStrategyService {
                         "        " +
                         "        <!-- 订单ID -->" +
                         "        <div style='padding: 20px 30px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;'>" +
-                        "            <div style='display: flex; align-items: center; justify-content: space-between;'>" +
+                        "            <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;'>" +
                         "                <span style='color: #6b7280; font-size: 14px;'>🎫 订单ID</span>" +
                         "                <span style='color: #1f2937; font-family: monospace; font-size: 12px;'>%s</span>" +
                         "            </div>" +
+                        "            %s" +
                         "        </div>" +
                         "        " +
                         "        <!-- 底部提示 -->" +
@@ -1521,8 +1582,9 @@ public class DoubleMovingAverageStrategyService {
                         "    </div>" +
                         "</body>" +
                         "</html>",
-                directionBg, directionColor, directionIcon, directionText,
                 hasRealData ? "订单已成交" : "订单已提交",
+                directionBg, directionColor, directionIcon, directionText,
+                orderStateText,
                 order.getSymbol(),
                 order.getSize(),
                 actualDataRows,
@@ -1535,6 +1597,14 @@ public class DoubleMovingAverageStrategyService {
                                 "    <table style='width: 100%; border-collapse: collapse;'>" + riskRewardHtml + "</table>" +
                                 "</div>",
                 order.getClientOid(),
+                hasRealData && orderDetail.getOrderId() != null ? 
+                        String.format(
+                                "<div style='display: flex; align-items: center; justify-content: space-between;'>" +
+                                        "    <span style='color: #6b7280; font-size: 14px;'>🏦 交易所订单ID</span>" +
+                                        "    <span style='color: #1f2937; font-family: monospace; font-size: 12px;'>%s</span>" +
+                                        "</div>",
+                                orderDetail.getOrderId()
+                        ) : "",
                 DateUtil.now()
         );
     }

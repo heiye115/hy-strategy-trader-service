@@ -226,12 +226,30 @@ public class BitgetCustomService {
          * <a href="https://www.bitget.fit/zh-CN/api-doc/contract/trade/Get-Order-Details">获取订单详情</a>
          **/
         public ResponseResult<BitgetOrderDetailResp> getOrderDetail(String symbol, String orderId) throws IOException {
+            return getOrderDetail(symbol, orderId, null);
+        }
+
+        /**
+         * 获取订单详情
+         * 限速规则: 10次/1s (uid)
+         * <a href="https://www.bitget.fit/zh-CN/api-doc/contract/trade/Get-Order-Details">获取订单详情</a>
+         **/
+        public ResponseResult<BitgetOrderDetailResp> getOrderDetail(String symbol, String orderId, String clientOid) throws IOException {
             Map<String, String> paramMap = Maps.newHashMap();
-            paramMap.put("orderId", orderId);
+            if (orderId != null && !orderId.isEmpty()) {
+                paramMap.put("orderId", orderId);
+            }
             paramMap.put("symbol", symbol);
             paramMap.put("productType", BG_PRODUCT_TYPE_USDT_FUTURES);
+            if (clientOid != null && !clientOid.isEmpty()) {
+                paramMap.put("clientOid", clientOid);
+            }
             Object rs = client.bitget().v2().mixOrder().orderDetail(paramMap);
             return toBean(toJson(rs), ResponseResult.class, BitgetOrderDetailResp.class);
+        }
+
+        public ResponseResult<BitgetOrderDetailResp> getOrderDetailByClientOid(String symbol, String clientOid) throws IOException {
+            return getOrderDetail(symbol, null, clientOid);
         }
 
 
