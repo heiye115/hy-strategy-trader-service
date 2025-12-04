@@ -2,6 +2,7 @@ package com.hy;
 
 import cn.hutool.core.date.DateUtil;
 import com.bitget.custom.entity.BitgetMixMarketCandlesResp;
+import com.bitget.custom.entity.BitgetOrdersPlanPendingResp;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.hy.common.enums.BitgetAccountType;
 import com.hy.common.enums.BitgetEnum;
@@ -17,6 +18,7 @@ import org.ta4j.core.BarSeries;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static com.hy.common.constants.BitgetConstant.BG_PRODUCT_TYPE_USDT_FUTURES;
@@ -58,10 +60,16 @@ public class DoubleMovingAverageTests {
     @Test
     public void testEamil() throws IOException {
         DoubleMovingAveragePlaceOrder order = JsonUtil.toBean("{\"clientOid\":\"1996403203935412224\",\"symbol\":\"HYPEUSDT\",\"size\":\"1.95\",\"side\":\"buy\",\"orderType\":\"market\",\"marginMode\":\"isolated\",\"stopLossPrice\":\"32.590\",\"takeProfitPrice\":\"40.810\",\"takeProfitSize\":\"0.98\",\"accountBalance\":76.61968933,\"leverage\":7}", DoubleMovingAveragePlaceOrder.class);
-        String html = doubleMovingAverageStrategyService.buildOrderEmailContent(order);
+        String html = doubleMovingAverageStrategyService.buildOrderEmailContent(order, null);
         // 发送HTML格式的邮件通知
         doubleMovingAverageStrategyService.sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", html);
 
+    }
+
+    @Test
+    public void test4() throws IOException {
+        Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> ordersPlanPending = doubleMovingAverageStrategyService.getOrdersPlanPending();
+        System.out.println(JsonUtil.toJson(ordersPlanPending));
     }
 
     public static void main(String[] args) {

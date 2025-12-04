@@ -632,7 +632,6 @@ public class DoubleMovingAverageStrategyService {
         } else if (BitgetEnum.M30.getCode().equals(timeFrame)) {
             return Duration.ofHours(2);  // 30分钟周期 → 2小时冷却（备用）
         }
-
         // 默认返回4小时冷却期（保守策略）
         return Duration.ofHours(4);
     }
@@ -828,8 +827,12 @@ public class DoubleMovingAverageStrategyService {
             }
             // 设置仓位止盈
             placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide(), BG_PLAN_TYPE_PROFIT_PLAN);
-            // 发送HTML格式的邮件通知
-            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam));
+
+            // 获取订单详情（包含实际成交数据）
+            ResponseResult<BitgetOrderDetailResp> orderDetailResp = bitgetSession.getOrderDetail(orderParam.getSymbol(), orderResult.getOrderId());
+
+            // 发送HTML格式的邮件通知（传入实际成交数据）
+            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, orderDetailResp));
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", JsonUtil.toJson(orderParam), JsonUtil.toJson(orderResult), e);
         }
@@ -1197,9 +1200,7 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 更新止损订单
      */
-    private void updateStopLossOrders(List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders,
-                                      DoubleMovingAverageData data,
-                                      BigDecimal stopProfitPrice) {
+    private void updateStopLossOrders(List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders, DoubleMovingAverageData data, BigDecimal stopProfitPrice) {
         for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
             try {
                 // 仅处理止损计划订单
@@ -1249,10 +1250,7 @@ public class DoubleMovingAverageStrategyService {
      * 更新空头止损价
      * 止损价向下移动策略: 取 min(最高价, 动态止盈价)
      */
-    private void updateShortStopLoss(BitgetOrdersPlanPendingResp.EntrustedOrder order,
-                                     BigDecimal currentTriggerPrice,
-                                     BigDecimal maxValue,
-                                     BigDecimal stopProfitPrice) {
+    private void updateShortStopLoss(BitgetOrdersPlanPendingResp.EntrustedOrder order, BigDecimal currentTriggerPrice, BigDecimal maxValue, BigDecimal stopProfitPrice) {
         BigDecimal newTriggerPrice = maxValue;
 
         // 如果动态止盈价有效且更优，则使用动态止盈价
@@ -1302,12 +1300,17 @@ public class DoubleMovingAverageStrategyService {
     }
 
     /**
-     * 构建HTML格式的订单邮件内容
+     * 构建HTML格式的订单邮件内容（基于实际成交数据）
      *
-     * @param order 订单信息
+     * @param order           订单参数信息
+     * @param orderDetailResp 订单详情响应（包含实际成交数据）
      * @return HTML格式的邮件内容
      */
-    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order) {
+    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order, ResponseResult<BitgetOrderDetailResp> orderDetailResp) {
+        // 提取实际成交数据
+        boolean hasRealData = (orderDetailResp != null && orderDetailResp.getData() != null && BG_RESPONSE_CODE_SUCCESS.equals(orderDetailResp.getCode()));
+        BitgetOrderDetailResp orderDetail = hasRealData ? orderDetailResp.getData() : null;
+
         // 判断交易方向
         boolean isBuy = "buy".equalsIgnoreCase(order.getSide());
         String directionColor = isBuy ? "#10b981" : "#ef4444";
@@ -1319,36 +1322,101 @@ public class DoubleMovingAverageStrategyService {
         String orderTypeText = "market".equalsIgnoreCase(order.getOrderType()) ? "市价单" : "限价单";
         String marginModeText = "isolated".equalsIgnoreCase(order.getMarginMode()) ? "逐仓" : "全仓";
 
-        // 计算盈亏比
+        // 实际成交数据
+        String actualPriceText = "";
+        String actualSizeText = "";
+        String feeText = "";
+        String actualDataRows = "";
+
+        if (hasRealData) {
+            // 成交均价
+            if (orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())) {
+                actualPriceText = orderDetail.getPriceAvg();
+                actualDataRows += String.format(
+                        "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>实际成交价</td>" +
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDT</td></tr>",
+                        actualPriceText
+                );
+            }
+
+            // 实际成交数量
+            if (orderDetail.getBaseVolume() != null && !"0".equals(orderDetail.getBaseVolume())) {
+                actualSizeText = orderDetail.getBaseVolume();
+                actualDataRows += String.format(
+                        "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>实际成交量</td>" +
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>",
+                        actualSizeText
+                );
+            }
+
+            // 手续费
+            if (orderDetail.getFee() != null) {
+                feeText = orderDetail.getFee();
+                BigDecimal feeAmount = new BigDecimal(feeText).abs();
+                actualDataRows += String.format(
+                        "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>手续费</td>" +
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%s USDT</td></tr>",
+                        feeAmount.setScale(4, RoundingMode.HALF_UP)
+                );
+            }
+        }
+
+        // 计算盈亏比（基于实际成交价或预估价）
         String riskRewardHtml = "";
         try {
             BigDecimal stopLoss = new BigDecimal(order.getStopLossPrice());
             BigDecimal takeProfit = new BigDecimal(order.getTakeProfitPrice());
             BigDecimal currentPrice;
+            BigDecimal actualSize = new BigDecimal(order.getSize());
+
+            // 优先使用实际成交价，否则使用预估价
+            if (hasRealData && orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())) {
+                currentPrice = new BigDecimal(orderDetail.getPriceAvg());
+                if (orderDetail.getBaseVolume() != null && !"0".equals(orderDetail.getBaseVolume())) {
+                    actualSize = new BigDecimal(orderDetail.getBaseVolume());
+                }
+            } else {
+                // 使用预估价格
+                if (isBuy) {
+                    currentPrice = stopLoss.add(stopLoss.multiply(new BigDecimal("0.1")));
+                } else {
+                    currentPrice = stopLoss.subtract(stopLoss.multiply(new BigDecimal("0.1")));
+                }
+            }
+
+            // 计算风险和收益金额
             BigDecimal riskAmount;
             BigDecimal rewardAmount;
 
             if (isBuy) {
-                currentPrice = stopLoss.add(stopLoss.multiply(new BigDecimal("0.1")));
                 riskAmount = currentPrice.subtract(stopLoss);
                 rewardAmount = takeProfit.subtract(currentPrice);
             } else {
-                currentPrice = stopLoss.subtract(stopLoss.multiply(new BigDecimal("0.1")));
                 riskAmount = stopLoss.subtract(currentPrice);
                 rewardAmount = currentPrice.subtract(takeProfit);
             }
 
+            // 计算实际USDT金额（风险/收益 × 成交数量）
+            BigDecimal riskAmountUSDT = riskAmount.multiply(actualSize);
+            BigDecimal rewardAmountUSDT = rewardAmount.multiply(actualSize);
             BigDecimal riskRewardRatio = rewardAmount.divide(riskAmount, 2, RoundingMode.HALF_UP);
 
+            String priceLabel = hasRealData && orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())
+                    ? "实际成交价" : "预估开仓价";
+
             riskRewardHtml = String.format(
-                    "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>潜在风险</td>" +
+                    "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>%s</td>" +
+                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDT</td></tr>" +
+                            "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>潜在风险</td>" +
                             "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #ef4444; font-weight: 600;'>-%s USDT</td></tr>" +
                             "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>潜在收益</td>" +
                             "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #10b981; font-weight: 600;'>+%s USDT</td></tr>" +
                             "<tr><td style='padding: 12px; color: #6b7280;'>盈亏比</td>" +
                             "<td style='padding: 12px; text-align: right; color: #3b82f6; font-weight: 700; font-size: 16px;'>1:%s</td></tr>",
-                    riskAmount.setScale(2, RoundingMode.HALF_UP),
-                    rewardAmount.setScale(2, RoundingMode.HALF_UP),
+                    priceLabel,
+                    currentPrice.setScale(2, RoundingMode.HALF_UP),
+                    riskAmountUSDT.setScale(2, RoundingMode.HALF_UP),
+                    rewardAmountUSDT.setScale(2, RoundingMode.HALF_UP),
                     riskRewardRatio
             );
         } catch (Exception e) {
@@ -1379,7 +1447,7 @@ public class DoubleMovingAverageStrategyService {
                         "        <!-- 头部 -->" +
                         "        <div style='background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center;'>" +
                         "            <h1 style='margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;'>📊 双均线策略交易通知</h1>" +
-                        "            <p style='margin: 10px 0 0 0; color: #e0e7ff; font-size: 14px;'>订单已成功提交</p>" +
+                        "            <p style='margin: 10px 0 0 0; color: #e0e7ff; font-size: 14px;'>%s</p>" +
                         "        </div>" +
                         "        " +
                         "        <!-- 交易方向标签 -->" +
@@ -1401,7 +1469,8 @@ public class DoubleMovingAverageStrategyService {
                         "        <div style='padding: 30px;'>" +
                         "            <h2 style='margin: 0 0 20px 0; color: #1f2937; font-size: 18px; font-weight: 600; border-left: 4px solid #667eea; padding-left: 12px;'>💰 订单参数</h2>" +
                         "            <table style='width: 100%%; border-collapse: collapse;'>" +
-                        "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>下单数量</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>" +
+                        "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>委托数量</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>" +
+                        "                %s" +
                         "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>订单类型</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>" +
                         "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>仓位模式</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>" +
                         "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>杠杆倍数</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%sx</td></tr>" +
@@ -1453,8 +1522,11 @@ public class DoubleMovingAverageStrategyService {
                         "</body>" +
                         "</html>",
                 directionBg, directionColor, directionIcon, directionText,
+                hasRealData ? "订单已成交" : "订单已提交",
                 order.getSymbol(),
-                order.getSize(), orderTypeText, marginModeText, order.getLeverage(),
+                order.getSize(),
+                actualDataRows,
+                orderTypeText, marginModeText, order.getLeverage(),
                 accountBalanceRow,
                 order.getStopLossPrice(), order.getTakeProfitPrice(), order.getTakeProfitSize(),
                 riskRewardHtml.isEmpty() ? "" :
