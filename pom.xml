@@ -182,12 +182,11 @@
             <version>4.0-beta1</version>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>io.github.heiye115</groupId>-->
-<!--            <artifactId>hyperliquid-java-sdk</artifactId>-->
-<!--            <version>${hyperliquid-java-sdk.version}</version>-->
-<!--        </dependency>-->
-
+        <dependency>
+            <groupId>io.github.heiye115</groupId>
+            <artifactId>hyperliquid-java-sdk</artifactId>
+            <version>${hyperliquid-java-sdk.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
