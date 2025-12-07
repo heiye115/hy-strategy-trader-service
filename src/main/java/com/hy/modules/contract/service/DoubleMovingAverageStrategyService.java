@@ -106,15 +106,11 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 中间价偏离度
      * 用于跟踪趋势下单时的价格容忍范围
-     * 优化分析：
-     * - 0.3%：过于严格，错过大量入场机会
-     * - 0.5%：平衡值，适应BTC/ETH H1周期波动
-     * - 0.8%：过于宽松，可能错过最佳价位
-     * 当前设置：0.5%（优化后）
-     * - 允许价格在中间价±0.5%范围内开仓
+     * 当前设置：0.1%（优化后）
+     * - 允许价格在中间价±0.1%范围内开仓
      * - 增加入场机会同时保持精准度
      **/
-    private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.3");
+    private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.1");
 
     /**
      * 动态止盈分段系数 - 第一段基础系数 (保守阶段)
@@ -271,19 +267,19 @@ public class DoubleMovingAverageStrategyService {
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
             // BTC H1周期：从8%优化到10%，适应BTC强势趋势
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H1.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(10.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M15.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(5.0)));
             // ETH H1周期：保持12%，已经很合理
             put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H1.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(12.0)));
             // SOL H4周期：从25%优化到20%，减少回撤风险
-            put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
+            //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             // ZEC H4周期：从30%优化到22%，避免过度激进
-            put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
+            //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
             // HYPE H4周期：从30%优化到25%，新币需要更稳健
-            put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
+            //put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
             // DOGE H4周期：从30%优化到25%，均衡波动与风险
-            put(SymbolEnum.DOGEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDT.getCode(), BitgetEnum.H4.getCode(), 0, 5, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
+            //put(SymbolEnum.DOGEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDT.getCode(), BitgetEnum.H4.getCode(), 0, 5, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
             // BNB H4周期：保持20%，已经很合理
-            put(SymbolEnum.BNBUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BNBUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
+            //put(SymbolEnum.BNBUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BNBUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
         }
     };
 
@@ -1349,7 +1345,7 @@ public class DoubleMovingAverageStrategyService {
                         actualSizeText
                 );
             }
-            
+
             // 成交金额（USDT总额）
             if (orderDetail.getQuoteVolume() != null && !"0".equals(orderDetail.getQuoteVolume())) {
                 BigDecimal quoteVolume = new BigDecimal(orderDetail.getQuoteVolume());
@@ -1370,14 +1366,14 @@ public class DoubleMovingAverageStrategyService {
                         feeAmount.setScale(4, RoundingMode.HALF_UP)
                 );
             }
-            
+
             // 订单状态
             if (orderDetail.getState() != null) {
                 String state = orderDetail.getState();
                 String stateColor = "#6b7280";
                 String stateIcon = "";
                 String stateLabel = "";
-                
+
                 switch (state) {
                     case "filled":
                         stateLabel = "全部成交";
@@ -1403,7 +1399,7 @@ public class DoubleMovingAverageStrategyService {
                         stateLabel = state;
                         stateIcon = "ℹ️";
                 }
-                
+
                 orderStateText = String.format(
                         "<div style='text-align: center; margin-top: 10px;'>" +
                                 "<span style='display: inline-block; padding: 6px 16px; background-color: %s; color: #ffffff; border-radius: 12px; font-size: 13px; font-weight: 600;'>%s %s</span>" +
@@ -1447,7 +1443,7 @@ public class DoubleMovingAverageStrategyService {
                 riskAmount = stopLoss.subtract(currentPrice);      // 止损价 - 开仓价
                 rewardAmount = currentPrice.subtract(takeProfit);  // 开仓价 - 止盈价
             }
-            
+
             // 安全检查：确保风险和收益为正数
             if (riskAmount.compareTo(BigDecimal.ZERO) <= 0 || rewardAmount.compareTo(BigDecimal.ZERO) <= 0) {
                 log.warn("buildOrderEmailContent: 盈亏比计算异常，风险={}, 收益={}, 开仓价={}, 止损={}, 止盈={}, 方向={}",
@@ -1597,7 +1593,7 @@ public class DoubleMovingAverageStrategyService {
                                 "    <table style='width: 100%; border-collapse: collapse;'>" + riskRewardHtml + "</table>" +
                                 "</div>",
                 order.getClientOid(),
-                hasRealData && orderDetail.getOrderId() != null ? 
+                hasRealData && orderDetail.getOrderId() != null ?
                         String.format(
                                 "<div style='display: flex; align-items: center; justify-content: space-between;'>" +
                                         "    <span style='color: #6b7280; font-size: 14px;'>🏦 交易所订单ID</span>" +

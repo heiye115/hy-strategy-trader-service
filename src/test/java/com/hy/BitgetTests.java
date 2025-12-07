@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 
 @SpringBootTest
 class BitgetTests {
@@ -62,6 +63,16 @@ class BitgetTests {
         System.out.println(Double.toString(0.995));
         BigDecimal SPREAD_RATE = new BigDecimal("0.8");
         System.out.println(SPREAD_RATE.add(BigDecimal.valueOf(0.21)).min(BigDecimal.ONE));
+
+        // 1) 生成128位熵（12词）
+        byte[] entropy = new byte[16];
+        SecureRandom sr = new SecureRandom();
+        sr.nextBytes(entropy);
+        //输出entropy二进制字符串
+        for (byte b : entropy) {
+            System.out.print(Integer.toBinaryString(b & 0xFF) + " ");
+        }
+
     }
 
 }
