@@ -11,7 +11,6 @@ import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.common.utils.num.AmountCalculator;
 import com.hy.modules.contract.entity.DoubleMovingAverageData;
 import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
 import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
@@ -42,7 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.BitgetConstant.*;
-import static com.hy.common.utils.num.AmountCalculator.calculateChangePercent;
+import static com.hy.common.utils.num.AmountCalculator.*;
 import static com.hy.common.utils.num.BigDecimalUtils.*;
 import static com.hy.common.utils.num.NumUtil.calculateExchangeMaxLeverage;
 
@@ -525,16 +524,13 @@ public class DoubleMovingAverageStrategyService {
     private DoubleMovingAveragePlaceOrder buildLongTrendOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
         BigDecimal highPrice = data.getMaxValue();
         BigDecimal lowPrice = data.getMinValue();
-
         // 计算中间价区间 (优化: 使用除法代替减法+乘法)
         BigDecimal medianPrice = highPrice.add(lowPrice).divide(BigDecimal.valueOf(2), conf.getPricePlace(), RoundingMode.HALF_UP);
-        BigDecimal medianPriceLower = AmountCalculator.decrease(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
-
-        // 价格在中间价下方0.3%到中间价之间，符合多头开多条件
+        BigDecimal medianPriceLower = decrease(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
+        // 价格在中间价下方0.1%到中间价之间，符合多头开多条件
         if (gte(latestPrice, medianPriceLower) && lt(latestPrice, medianPrice)) {
             return createPlaceOrder(conf, BG_SIDE_BUY, latestPrice, lowPrice);
         }
-
         return null;
     }
 
@@ -544,16 +540,13 @@ public class DoubleMovingAverageStrategyService {
     private DoubleMovingAveragePlaceOrder buildShortTrendOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
         BigDecimal highPrice = data.getMaxValue();
         BigDecimal lowPrice = data.getMinValue();
-
         // 计算中间价区间 (优化: 使用除法代替减法+乘法)
         BigDecimal medianPrice = highPrice.add(lowPrice).divide(BigDecimal.valueOf(2), conf.getPricePlace(), RoundingMode.HALF_UP);
-        BigDecimal medianPriceUpper = AmountCalculator.increase(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
-
-        // 价格在中间价到中间价上方0.3%之间，符合空头开空条件
+        BigDecimal medianPriceUpper = increase(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
+        // 价格在中间价到中间价上方0.1%之间，符合空头开空条件
         if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceUpper)) {
             return createPlaceOrder(conf, BG_SIDE_SELL, latestPrice, highPrice);
         }
-
         return null;
     }
 
@@ -843,9 +836,17 @@ public class DoubleMovingAverageStrategyService {
         if (BG_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 1.5
             takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), BigDecimal.TWO)) {
+                //如果止盈价小于2%，则设置latestPrice增加2%为止盈价
+                takeProfitPrice = increase(latestPrice, BigDecimal.valueOf(2), conf.getPricePlace());
+            }
         } else if (BG_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
             // 空头止盈：开仓价 - (止损价 - 开仓价) × 1.5
             takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), BigDecimal.TWO)) {
+                //如果止盈价小于2%，则设置latestPrice减少2%为止盈价
+                takeProfitPrice = decrease(latestPrice, BigDecimal.valueOf(2), conf.getPricePlace());
+            }
         }
         order.setTakeProfitPrice(takeProfitPrice.toPlainString());
         return order;
