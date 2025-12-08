@@ -628,7 +628,7 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 检测是否形成突破趋势排列
      **/
-    private boolean isBreakoutTrend(DoubleMovingAverageData data, BigDecimal latestPrice) {
+    private boolean isBreakoutTrend2(DoubleMovingAverageData data, BigDecimal latestPrice) {
         //多头突破
         if (gt(latestPrice, data.getMa144()) &&
                 gt(latestPrice, data.getEma144()) &&
@@ -641,7 +641,18 @@ public class DoubleMovingAverageStrategyService {
                 gt(data.getEma144(), data.getMa55()) &&
                 gt(data.getEma144(), data.getEma55()) &&
                 gt(data.getEma144(), data.getMa21()) &&
-                gt(data.getEma144(), data.getEma21())
+                gt(data.getEma144(), data.getEma21()) &&
+
+                lt(data.getMa55(), data.getMa144()) &&
+                lt(data.getMa55(), data.getEma144()) &&
+                lt(data.getEma55(), data.getMa144()) &&
+                lt(data.getEma55(), data.getEma144()) &&
+
+                lt(data.getMa21(), data.getMa55()) &&
+                lt(data.getMa21(), data.getEma55()) &&
+                lt(data.getEma21(), data.getMa55()) &&
+                lt(data.getEma21(), data.getEma55())
+
 
         ) {
             return true;
@@ -658,8 +669,110 @@ public class DoubleMovingAverageStrategyService {
                 lt(data.getEma144(), data.getMa55()) &&
                 lt(data.getEma144(), data.getEma55()) &&
                 lt(data.getEma144(), data.getMa21()) &&
-                lt(data.getEma144(), data.getEma21());
+                lt(data.getEma144(), data.getEma21()) &&
+
+
+                gt(data.getMa55(), data.getMa144()) &&
+                gt(data.getMa55(), data.getEma144()) &&
+                gt(data.getEma55(), data.getMa144()) &&
+                gt(data.getEma55(), data.getEma144()) &&
+
+                gt(data.getMa21(), data.getMa55()) &&
+                gt(data.getMa21(), data.getEma55()) &&
+                gt(data.getEma21(), data.getMa55()) &&
+                gt(data.getEma21(), data.getEma55());
     }
+
+
+    /**
+     * 检测是否形成突破趋势排列
+     */
+    private boolean isBreakoutTrend(DoubleMovingAverageData data, BigDecimal latestPrice) {
+        return isLongBreakout(data, latestPrice) || isShortBreakout(data, latestPrice);
+    }
+
+    /**
+     * 多头突破检测
+     * 突破条件：价格突破MA144/EMA144，且形成严格的多头排列
+     */
+    private boolean isLongBreakout(DoubleMovingAverageData data, BigDecimal latestPrice) {
+        // 1. 价格突破长期均线
+        if (!gt(latestPrice, data.getMa144()) || !gt(latestPrice, data.getEma144())) {
+            return false;
+        }
+
+        // 2. MA144/EMA144 在最顶部（压制 MA55/EMA55/MA21/EMA21）
+        boolean ma144OnTop = gt(data.getMa144(), data.getMa55())
+                && gt(data.getMa144(), data.getEma55())
+                && gt(data.getMa144(), data.getMa21())
+                && gt(data.getMa144(), data.getEma21());
+
+        boolean ema144OnTop = gt(data.getEma144(), data.getMa55())
+                && gt(data.getEma144(), data.getEma55())
+                && gt(data.getEma144(), data.getMa21())
+                && gt(data.getEma144(), data.getEma21());
+
+        // 3. MA55/EMA55 在中间（在 MA144/EMA144 之下，在 MA21/EMA21 之上）
+        boolean ma55InMiddle = lt(data.getMa55(), data.getMa144())
+                && lt(data.getMa55(), data.getEma144())
+                && gt(data.getMa55(), data.getMa21())
+                && gt(data.getMa55(), data.getEma21());
+
+        boolean ema55InMiddle = lt(data.getEma55(), data.getMa144())
+                && lt(data.getEma55(), data.getEma144())
+                && gt(data.getEma55(), data.getMa21())
+                && gt(data.getEma55(), data.getEma21());
+
+        // 4. MA21/EMA21 在最底部（被 MA55/EMA55 压制）
+        boolean shortTermAtBottom = lt(data.getMa21(), data.getMa55())
+                && lt(data.getMa21(), data.getEma55())
+                && lt(data.getEma21(), data.getMa55())
+                && lt(data.getEma21(), data.getEma55());
+
+        return ma144OnTop && ema144OnTop && ma55InMiddle && ema55InMiddle && shortTermAtBottom;
+    }
+
+    /**
+     * 空头突破检测
+     * 突破条件：价格跌破MA144/EMA144，且形成严格的空头排列
+     */
+    private boolean isShortBreakout(DoubleMovingAverageData data, BigDecimal latestPrice) {
+        // 1. 价格跌破长期均线
+        if (!lt(latestPrice, data.getMa144()) || !lt(latestPrice, data.getEma144())) {
+            return false;
+        }
+
+        // 2. MA144/EMA144 在最底部（被 MA55/EMA55/MA21/EMA21 压制）
+        boolean ma144AtBottom = lt(data.getMa144(), data.getMa55())
+                && lt(data.getMa144(), data.getEma55())
+                && lt(data.getMa144(), data.getMa21())
+                && lt(data.getMa144(), data.getEma21());
+
+        boolean ema144AtBottom = lt(data.getEma144(), data.getMa55())
+                && lt(data.getEma144(), data.getEma55())
+                && lt(data.getEma144(), data.getMa21())
+                && lt(data.getEma144(), data.getEma21());
+
+        // 3. MA55/EMA55 在中间（在 MA144/EMA144 之上，在 MA21/EMA21 之下）
+        boolean ma55InMiddle = gt(data.getMa55(), data.getMa144())
+                && gt(data.getMa55(), data.getEma144())
+                && lt(data.getMa55(), data.getMa21())
+                && lt(data.getMa55(), data.getEma21());
+
+        boolean ema55InMiddle = gt(data.getEma55(), data.getMa144())
+                && gt(data.getEma55(), data.getEma144())
+                && lt(data.getEma55(), data.getMa21())
+                && lt(data.getEma55(), data.getEma21());
+
+        // 4. MA21/EMA21 在最顶部（压制 MA55/EMA55）
+        boolean shortTermOnTop = gt(data.getMa21(), data.getMa55())
+                && gt(data.getMa21(), data.getEma55())
+                && gt(data.getEma21(), data.getMa55())
+                && gt(data.getEma21(), data.getEma55());
+
+        return ma144AtBottom && ema144AtBottom && ma55InMiddle && ema55InMiddle && shortTermOnTop;
+    }
+
 
     /**
      * 检测是否形成严格的多重均线趋势排列
