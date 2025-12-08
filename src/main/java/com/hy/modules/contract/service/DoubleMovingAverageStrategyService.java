@@ -795,7 +795,7 @@ public class DoubleMovingAverageStrategyService {
         // EMA交叉条件: ema21 > ma55 且 ema21 > ma144
         boolean emaCrossCondition = gt(data.getEma21(), data.getMa55()) && gt(data.getEma21(), data.getMa144());
         // 中期均线条件: ma55或ema55大于ma144或ema144
-        boolean midTermCondition = (gt(data.getMa55(), data.getMa144()) && gt(data.getMa55(), data.getEma144())) || (gt(data.getEma55(), data.getMa144()) && gt(data.getEma55(), data.getEma144()));
+        boolean midTermCondition = (gt(data.getMa55(), data.getMa144()) && gt(data.getMa55(), data.getEma144())) && (gt(data.getEma55(), data.getMa144()) && gt(data.getEma55(), data.getEma144()));
         return maCondition && emaCondition && maCrossCondition && emaCrossCondition && midTermCondition;
     }
 
@@ -812,7 +812,7 @@ public class DoubleMovingAverageStrategyService {
         // EMA交叉条件: ema21 < ma55 且 ema21 < ma144
         boolean emaCrossCondition = lt(data.getEma21(), data.getMa55()) && lt(data.getEma21(), data.getMa144());
         // 中期均线条件: ma55或ema55小于ma144或ema144
-        boolean midTermCondition = (lt(data.getMa55(), data.getMa144()) && lt(data.getMa55(), data.getEma144())) || (lt(data.getEma55(), data.getMa144()) && lt(data.getEma55(), data.getEma144()));
+        boolean midTermCondition = (lt(data.getMa55(), data.getMa144()) && lt(data.getMa55(), data.getEma144())) && (lt(data.getEma55(), data.getMa144()) && lt(data.getEma55(), data.getEma144()));
         return maCondition && emaCondition && maCrossCondition && emaCrossCondition && midTermCondition;
     }
 
