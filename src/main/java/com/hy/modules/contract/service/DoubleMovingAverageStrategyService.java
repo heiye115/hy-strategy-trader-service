@@ -190,64 +190,6 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static BigDecimal STAGE3_INCREMENT = new BigDecimal("0.0035");
 
-    // ==================== 震荡过滤器配置 ====================
-
-    /**
-     * ADR（平均日波动幅度）计算周期
-     * 用于识别震荡市场，统计近N根K线的平均波动
-     * 推荐值分析：
-     * - 14根：过于敏感，容易误判（不推荐）
-     * - 21根：与MA21对齐，稳健选择（推荐）
-     * - 28-30根：数学最优值，信噪比最高（最推荐）
-     * - 55根：与MA55对齐，极度保守（可选）
-     * 当前设置：21根K线
-     * H1周期：21小时 ≈ 近1天波动
-     * H4周期：84小时 ≈ 近3.5天波动
-     */
-    private final static int ADR_PERIOD = 21;
-
-    /**
-     * ADR震荡阈值 - H1周期
-     * 当ADR低于此值时，认为市场处于震荡状态，禁止开仓
-     * 优化分析（基于BTC/ETH H1周期实际波动）：
-     * - 震荡市场：ADR = 2.5-3.5%
-     * - 弱趋势市场：ADR = 3.5-5.0%
-     * - 强趋势市场：ADR = 5.0%+
-     * 当前设置：3.5%（平衡值）
-     * - 过滤纯震荡行情（ADR < 3.5%）
-     * - 保留弱趋势及以上（ADR >= 3.5%）
-     * - 与MA_CONVERGENCE_THRESHOLD形成双重验证
-     */
-    private final static BigDecimal ADR_THRESHOLD_H1 = new BigDecimal("3.5");
-
-    /**
-     * ADR震荡阈值 - H4周期
-     * 山寨币H4周期波动更大，阈值相应提高
-     * 优化分析（基于SOL/DOGE等H4周期实际波动）：
-     * - 震荡市场：ADR = 3.5-5.0%
-     * - 弱趋势市场：ADR = 5.0-7.0%
-     * - 强趋势市场：ADR = 7.0-12.0%
-     * 当前设置：4.5%（与H1保持一致的过滤严格度）
-     * - 过滤纯震荡行情（ADR < 4.5%）
-     * - 保留弱趋势及以上（ADR >= 4.5%）
-     * - 相对H1的偏离度比例相同（3.5/21 ≈ 4.5/28）
-     */
-    private final static BigDecimal ADR_THRESHOLD_H4 = new BigDecimal("4.5");
-
-    /**
-     * 均线收敛阈值
-     * 当MA21与MA144的偏离度低于此值时，认为均线系统收敛（震荡特征）
-     * 建议值: 2.0-2.5%
-     */
-    private final static BigDecimal MA_CONVERGENCE_THRESHOLD = new BigDecimal("2.0");
-
-    /**
-     * BarSeries缓存 - 用于震荡过滤计算
-     * 存储每个交易对的K线序列数据，避免重复构建
-     */
-    private final static Map<String, BarSeries> BAR_SERIES_CACHE = new ConcurrentHashMap<>();
-
-
     /**
      * 策略配置
      * 配置说明：
@@ -394,9 +336,6 @@ public class DoubleMovingAverageStrategyService {
 
                     // 缓存双均线指标数据
                     DMAS_CACHE.put(config.getSymbol(), data);
-                    // ⚡ 新增：同时缓存BarSeries用于震荡过滤
-                    BAR_SERIES_CACHE.put(config.getSymbol(), barSeries);
-
                 } catch (Exception e) {
                     log.error("updateDoubleMovingAverageIndicators-error:{}", config.getSymbol(), e);
                 }
@@ -438,32 +377,21 @@ public class DoubleMovingAverageStrategyService {
                 // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
                 AtomicBoolean allowOpen = canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) return;
-
                 BigDecimal latestPrice = LATEST_PRICE_CACHE.get(conf.getSymbol());
-
-                // ⚡ 2. 震荡市场过滤（核心风控逻辑）
-                // 重要：ADR过滤器关闭会导致胜率从58%跌至41%，月期望收益从+48%跌至-295%
-                // 统计显著性检验表明：关闭ADR会导致95%置信度的负期望
-//                BarSeries series = BAR_SERIES_CACHE.get(symbol);
-//                if (isChoppyMarket(symbol, series, data, conf.getTimeFrame())) {
-//                    //log.warn("震荡过滤 [{}]: 当前为震荡市场，跳过开仓信号", symbol);
-//                    return; // 震荡市场，直接跳过
-//                }
-
                 DoubleMovingAveragePlaceOrder order = null;
 
-                // 3. 跟踪趋势下单
+                // 2. 跟踪趋势下单
                 if (isStrictMATrendConfirmed(data)) {
                     order = buildTrendFollowingPlaceOrder(conf, data, latestPrice);
                 }
 
-                // 4. 跟踪突破下单
+                // 3. 跟踪突破下单
                 if (order == null && isBreakoutTrend(data, latestPrice)) {
                     order = buildBreakoutPlaceOrder(conf, data, latestPrice);
                 }
 
-                // 5. 订单入队处理
-                if (order != null && tryAcquireOpenLock(symbol)) {
+                // 4. 订单入队处理
+                if (order != null && tryAcquireOpenLock(symbol, conf.getTimeFrame())) {
                     // 获取用于写入的 allowOpen 对象（如果之前不存在，则认为允许开单）
                     AtomicBoolean allowOpenForSet = canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(true));
                     if (ORDER_QUEUE.offer(order)) {
@@ -574,13 +502,12 @@ public class DoubleMovingAverageStrategyService {
     /**
      * 获取开仓锁
      **/
-    private boolean tryAcquireOpenLock(String symbol) {
+    private boolean tryAcquireOpenLock(String symbol, String timeFrame) {
         openLockMap.putIfAbsent(symbol, new AtomicBoolean(true));
         AtomicBoolean lock = openLockMap.get(symbol);
         if (lock.compareAndSet(true, false)) {
             // 根据时间周期动态设置冷却期
-            DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
-            Duration cooldown = getCooldownPeriod(config.getTimeFrame());
+            Duration cooldown = getCooldownPeriod(timeFrame);
             taskScheduler.schedule(() -> lock.set(true), Instant.now().plus(cooldown));
             return true;
         }
@@ -831,7 +758,7 @@ public class DoubleMovingAverageStrategyService {
         order.setLeverage(actualLeverage);
         // 止盈数量 默认50%
         order.setTakeProfitSize(size.multiply(BigDecimal.valueOf(0.5)).setScale(conf.getVolumePlace(), RoundingMode.HALF_UP).toPlainString());
-        //止盈价 盈亏比 1.5:1
+        //止盈价需要满足：在1.5:1盈亏比的基础上，确保止盈至少能赚2%
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
         if (BG_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 1.5
@@ -1717,115 +1644,5 @@ public class DoubleMovingAverageStrategyService {
      **/
     public void sendHtmlEmail(String subject, String htmlContent) {
         mailService.sendHtmlMail(emailRecipient, subject, htmlContent);
-    }
-
-    // ==================== 震荡过滤器核心方法 ====================
-
-    /**
-     * 计算平均日波动幅度（ADR - Average Daily Range）
-     * 通过统计近N根K线的平均波动来识别市场活跃度
-     *
-     * @param series K线序列数据
-     * @param period 统计周期（默认14）
-     * @return ADR百分比值，例如4.5表示平均波动4.5%
-     */
-    private BigDecimal calculateADR(BarSeries series, int period) {
-        if (series == null || series.getBarCount() < period) {
-            return BigDecimal.ZERO;
-        }
-
-        int endIndex = series.getEndIndex();
-        int startIndex = Math.max(0, endIndex - period + 1);
-
-        BigDecimal totalRange = BigDecimal.ZERO;
-        int count = 0;
-
-        for (int i = startIndex; i <= endIndex; i++) {
-            Bar bar = series.getBar(i);
-            BigDecimal high = bar.getHighPrice().bigDecimalValue();
-            BigDecimal low = bar.getLowPrice().bigDecimalValue();
-            BigDecimal open = bar.getOpenPrice().bigDecimalValue();
-
-            // 防止除零错误
-            if (open.compareTo(BigDecimal.ZERO) == 0) {
-                continue;
-            }
-
-            // 计算单根K线的波动幅度 = (最高价 - 最低价) / 开盘价 * 100
-            BigDecimal range = high.subtract(low)
-                    .divide(open, 4, RoundingMode.HALF_UP)
-                    .multiply(new BigDecimal("100"));
-
-            totalRange = totalRange.add(range);
-            count++;
-        }
-
-        // 返回平均波动幅度
-        return count > 0 ? totalRange.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
-    }
-
-    /**
-     * 计算均线收敛度
-     * 震荡市场的典型特征是短期均线和长期均线距离很近（纠缠状态）
-     *
-     * @param data 双均线数据
-     * @return 最大均线偏离度百分比
-     */
-    private BigDecimal calculateMAConvergence(DoubleMovingAverageData data) {
-        // 计算MA21与MA144的偏离度
-        BigDecimal maDeviation = calculateChangePercent(data.getMa144(), data.getMa21()).abs();
-        // 计算EMA21与EMA144的偏离度
-        BigDecimal emaDeviation = calculateChangePercent(data.getEma144(), data.getEma21()).abs();
-        // 返回较大的偏离度（更保守的判断）
-        return maDeviation.max(emaDeviation);
-    }
-
-    /**
-     * 根据时间周期获取对应的ADR阈值
-     * H1周期使用更严格的阈值，H4周期使用相对宽松的阈值
-     *
-     * @param timeFrame 时间周期代码（如 "1H", "4H"）
-     * @return ADR阈值百分比
-     */
-    private BigDecimal getADRThreshold(String timeFrame) {
-        if (BitgetEnum.H1.getCode().equals(timeFrame)) {
-            return ADR_THRESHOLD_H1;  // H1周期：3.5%
-        } else if (BitgetEnum.H4.getCode().equals(timeFrame)) {
-            return ADR_THRESHOLD_H4;  // H4周期：4.5%
-        }
-        // 默认使用H1周期阈值（更保守）
-        return ADR_THRESHOLD_H1;
-    }
-
-    /**
-     * 震荡市场检测（核心过滤方法）
-     * 通过ADR和均线收敛度双重验证，识别震荡行情
-     *
-     * @param symbol    交易对符号
-     * @param series    K线序列
-     * @param data      双均线数据
-     * @param timeFrame 时间周期
-     * @return true=震荡市场（禁止开仓），false=趋势市场（允许开仓）
-     */
-    private boolean isChoppyMarket(String symbol, BarSeries series, DoubleMovingAverageData data, String timeFrame) {
-        if (series == null || data == null) {
-            return false; // 数据不足，保守起见不过滤
-        }
-        // 1. ADR检测：波动过小表示震荡
-        BigDecimal adr = calculateADR(series, ADR_PERIOD);
-        BigDecimal adrThreshold = getADRThreshold(timeFrame);
-        if (lte(adr, adrThreshold)) {
-            //log.warn("震荡过滤 [{}]: ADR={}% <= 阈值{}%, 市场波动不足，疑似震荡市", symbol, adr, adrThreshold);
-            return true;  // ADR过低，确认为震荡市场
-        }
-        // 2. 均线收敛检测：均线距离过近表示震荡
-        BigDecimal maConvergence = calculateMAConvergence(data);
-        if (lte(maConvergence, MA_CONVERGENCE_THRESHOLD)) {
-            //log.warn("震荡过滤 [{}]: 均线收敛度={}% <= 阈值{}%, 均线系统纠缠，疑似震荡市", symbol, maConvergence, MA_CONVERGENCE_THRESHOLD);
-            return true;  // 均线收敛，确认为震荡市场
-        }
-        // 3. 双重检测都通过，市场处于趋势状态
-        //log.info("震荡过滤 [{}]: 通过 ✓ ADR={}% 均线收敛度={}% 市场具备趋势特征", symbol, adr, maConvergence);
-        return false;
     }
 }

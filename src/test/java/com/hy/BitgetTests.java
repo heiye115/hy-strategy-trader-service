@@ -1,5 +1,6 @@
 package com.hy;
 
+import com.hy.common.config.BitgetProperties;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.MartingaleStrategyConfig;
 import com.hy.modules.contract.service.MartingaleStrategyService;
@@ -30,6 +31,8 @@ class BitgetTests {
     @Value("${spring.mail.password}")
     private String mailPassword;
 
+    @Autowired
+    private BitgetProperties bitgetProperties;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -57,6 +60,11 @@ class BitgetTests {
 
         MartingaleStrategyConfig config = MartingaleStrategyService.STRATEGY_CONFIG_MAP.get("ETHUSDT");
         System.out.println(JsonUtil.toJson(config));
+    }
+
+    @Test
+    public void t3() {
+        System.out.println(bitgetProperties);
     }
 
     public static void main(String[] args) {
