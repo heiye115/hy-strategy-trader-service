@@ -207,7 +207,7 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H1.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(8.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M5.getCode(), 4, 1, 100, BigDecimal.valueOf(2.0), BigDecimal.valueOf(3.0)));
             put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(15.0)));
             //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
@@ -760,19 +760,21 @@ public class DoubleMovingAverageStrategyService {
         order.setTakeProfitSize(size.multiply(BigDecimal.valueOf(0.5)).setScale(conf.getVolumePlace(), RoundingMode.HALF_UP).toPlainString());
         //止盈价需要满足：在1.5:1盈亏比的基础上，确保止盈至少能赚2%
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
+        //止盈幅度
+        BigDecimal takeProfitPercent = BigDecimal.valueOf(0.5);
         if (BG_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 1.5
             takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), BigDecimal.ONE)) {
+            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
                 //如果止盈价小于1%，则设置latestPrice增加1%为止盈价
-                takeProfitPrice = increase(latestPrice, BigDecimal.valueOf(1), conf.getPricePlace());
+                takeProfitPrice = increase(latestPrice, takeProfitPercent, conf.getPricePlace());
             }
         } else if (BG_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
             // 空头止盈：开仓价 - (止损价 - 开仓价) × 1.5
             takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), BigDecimal.ONE)) {
+            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
                 //如果止盈价小于1%，则设置latestPrice减少1%为止盈价
-                takeProfitPrice = decrease(latestPrice, BigDecimal.valueOf(1), conf.getPricePlace());
+                takeProfitPrice = decrease(latestPrice, takeProfitPercent, conf.getPricePlace());
             }
         }
         order.setTakeProfitPrice(takeProfitPrice.toPlainString());
