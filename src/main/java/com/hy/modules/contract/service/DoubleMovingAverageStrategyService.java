@@ -540,6 +540,8 @@ public class DoubleMovingAverageStrategyService {
             return Duration.ofHours(1);  // 15分钟周期 → 1小时冷却（备用）
         } else if (BitgetEnum.M30.getCode().equals(timeFrame)) {
             return Duration.ofHours(2);  // 30分钟周期 → 2小时冷却（备用）
+        } else if (BitgetEnum.M5.getCode().equals(timeFrame)) {
+            return Duration.ofMinutes(30);  // 5分钟周期 → 30分钟冷却（备用）
         }
         // 默认返回4小时冷却期（保守策略）
         return Duration.ofHours(4);
