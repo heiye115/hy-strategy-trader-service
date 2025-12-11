@@ -764,15 +764,15 @@ public class DoubleMovingAverageStrategyService {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 1.5
             takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), BigDecimal.TWO)) {
-                //如果止盈价小于2%，则设置latestPrice增加2%为止盈价
-                takeProfitPrice = increase(latestPrice, BigDecimal.valueOf(2), conf.getPricePlace());
+                //如果止盈价小于1%，则设置latestPrice增加1%为止盈价
+                takeProfitPrice = increase(latestPrice, BigDecimal.valueOf(1), conf.getPricePlace());
             }
         } else if (BG_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
             // 空头止盈：开仓价 - (止损价 - 开仓价) × 1.5
             takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), BigDecimal.TWO)) {
-                //如果止盈价小于2%，则设置latestPrice减少2%为止盈价
-                takeProfitPrice = decrease(latestPrice, BigDecimal.valueOf(2), conf.getPricePlace());
+                //如果止盈价小于1%，则设置latestPrice减少1%为止盈价
+                takeProfitPrice = decrease(latestPrice, BigDecimal.valueOf(1), conf.getPricePlace());
             }
         }
         order.setTakeProfitPrice(takeProfitPrice.toPlainString());
