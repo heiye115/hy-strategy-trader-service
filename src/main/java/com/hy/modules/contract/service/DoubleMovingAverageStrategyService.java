@@ -207,7 +207,7 @@ public class DoubleMovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.M5.getCode(), 4, 1, 100, BigDecimal.valueOf(2.0), BigDecimal.valueOf(3.0)));
+            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDT.getCode(), BitgetEnum.H4.getCode(), 4, 1, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(10.0)));
             put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 2, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(15.0)));
             //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
@@ -267,8 +267,6 @@ public class DoubleMovingAverageStrategyService {
                 if (!config.getEnable()) continue;
                 // 设置保证金模式为逐仓
                 setMarginModeForSymbol(config);
-                // 设置杠杆倍数 默认1倍
-                //setLeverageForSymbol(config.getSymbol(), 1);
             }
             // 设置持仓模式为单向持仓
             setPositionMode();
@@ -333,7 +331,6 @@ public class DoubleMovingAverageStrategyService {
                     }
                     BarSeries barSeries = buildSeriesFromBitgetCandles(rs.getData(), bitgetEnum.getDuration());
                     DoubleMovingAverageData data = calculateIndicators(barSeries, config.getPricePlace());
-
                     // 缓存双均线指标数据
                     DMAS_CACHE.put(config.getSymbol(), data);
                 } catch (Exception e) {
