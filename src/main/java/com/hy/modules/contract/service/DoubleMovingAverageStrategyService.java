@@ -1058,7 +1058,8 @@ public class DoubleMovingAverageStrategyService {
 
                 // 计算动态止盈价（基于持仓方向和盈亏平衡价）
                 BigDecimal stopProfitPrice = calculateDynamicStopProfitPrice(latestPrice, data, config, position);
-
+                // 如果动态止盈价小于等于0，则不更新
+                if (lte(stopProfitPrice, BigDecimal.ZERO)) return;
                 // 获取当前委托订单
                 List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;

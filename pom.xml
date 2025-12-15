@@ -32,7 +32,7 @@
         <ta4j-core-version>0.19</ta4j-core-version>
         <fastjson.version>2.0.57</fastjson.version>
         <jasypt.version>3.0.5</jasypt.version>
-        <hyperliquid-java-sdk.version>0.2.2</hyperliquid-java-sdk.version>
+        <hyperliquid-java-sdk.version>0.2.6</hyperliquid-java-sdk.version>
     </properties>
 
     <dependencies>
