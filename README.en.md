@@ -224,4 +224,10 @@ Providing quantitative trading strategy development and customization services. 
 
 ## Disclaimer
 
-This project is for educational and research purposes only. Users assume all trading risks. The author is not responsible for any losses incurred from using this project.
+1. **Risk Warning**: Quantitative trading involves high risk. Market volatility may lead to partial or total loss of funds. This project is for technical research and educational reference only and does not constitute investment advice.
+2. **Live Trading Caution**: Users should fully understand the strategy logic and are strongly advised to conduct thorough testing on demo accounts before live trading. The authors and contributors are not responsible for any trading losses caused by code defects, system failures, network delays, or API errors.
+3. **Personal Responsibility**: Users bear full responsibility for their trading behavior and configuration parameters. By using this project, you acknowledge and agree to assume all associated risks.
+4. **Legal Compliance**: Please ensure that your trading activities comply with local laws and regulations.
+
+---
+**Trading involves risk. Invest with caution.**
