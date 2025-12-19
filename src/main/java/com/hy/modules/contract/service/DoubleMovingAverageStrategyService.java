@@ -757,20 +757,20 @@ public class DoubleMovingAverageStrategyService {
         order.setLeverage(actualLeverage);
         // 止盈数量 默认50%
         order.setTakeProfitSize(size.multiply(BigDecimal.valueOf(0.5)).setScale(conf.getVolumePlace(), RoundingMode.HALF_UP).toPlainString());
-        //止盈价需要满足：在1.5:1盈亏比的基础上，确保止盈至少能赚2%
+        //止盈价需要满足：在2:1盈亏比的基础上，确保止盈至少能赚1%
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
         //止盈幅度
-        BigDecimal takeProfitPercent = BigDecimal.valueOf(0.5);
+        BigDecimal takeProfitPercent = BigDecimal.valueOf(1.0);
         if (BG_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
-            // 多头止盈：开仓价 + (开仓价 - 止损价) × 1.5
-            takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            // 多头止盈：开仓价 + (开仓价 - 止损价) × 2.0
+            takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
                 //如果止盈价小于1%，则设置latestPrice增加1%为止盈价
                 takeProfitPrice = increase(latestPrice, takeProfitPercent, conf.getPricePlace());
             }
         } else if (BG_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
-            // 空头止盈：开仓价 - (止损价 - 开仓价) × 1.5
-            takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("1.5"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            // 空头止盈：开仓价 - (止损价 - 开仓价) × 2.0
+            takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
                 //如果止盈价小于1%，则设置latestPrice减少1%为止盈价
                 takeProfitPrice = decrease(latestPrice, takeProfitPercent, conf.getPricePlace());
