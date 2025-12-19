@@ -7,7 +7,7 @@ HY策略交易服务是一个基于Bitget交易所API的自动化交易系统，
 ## 主要功能
 
 - **交易策略**
-    - 双均线策略：适合趋势行情。高盈亏比，支持多空双向。
+    - 双均线策略：基于MA/EMA多重均线系统的趋势追踪与突破策略。高盈亏比，支持动态杠杆。
     - 区间震荡策略：适合宽幅震荡或波段行情。胜率和盈亏比均衡，支持多空双向。
     - 短线策略：适合短线行情。高风险、高收益，支持多空双向。
     - 马丁格尔策略：适合震荡行情。稳健、高胜率，支持多空双向。
@@ -64,10 +64,12 @@ git clone https://gitee.com/heiye115/hy-strategy-trader-service.git
 ```properties
 # application.properties
 # 第1个账号 马丁格尔策略专用API Key
+bitget.accounts[0].name=MARTINGALE
 bitget.accounts[0].api-key=您的API Key
 bitget.accounts[0].secret-key=您的Secret Key
 bitget.accounts[0].passphrase=您的Passphrase
 # 第2个账号 双均线策略专用API Key
+bitget.accounts[1].name=DMA
 bitget.accounts[1].api-key=您的API Key
 bitget.accounts[1].secret-key=您的Secret Key
 bitget.accounts[1].passphrase=您的Passphrase
@@ -115,10 +117,16 @@ com.hy.HyStratTraderServiceApplication
 ```java
 
 @Autowired
-private DualMovingAverageStrategyV2Service dualMovingAverageStrategyService;
+private DoubleMovingAverageStrategyService doubleMovingAverageStrategyService;
 
 @Autowired
-private RangeTradingStrategyV7Service rangeTradingStrategyService;
+private RangeTradingStrategyService rangeTradingStrategyService;
+
+@Autowired
+private MartingaleStrategyService martingaleStrategyService;
+
+@Autowired
+private ShortTermTradingStrategyService shortTermTradingStrategyService;
 ```
 
 ## API接口
@@ -142,10 +150,17 @@ private RangeTradingStrategyV7Service rangeTradingStrategyService;
 
 ### 双均线策略
 
-基于两条不同周期的移动平均线产生交易信号：
+基于多重移动平均线（MA/EMA）组合的复合趋势追踪与突破策略：
 
-- 当短期均线向上穿越长期均线时产生买入信号
-- 当短期均线向下穿越长期均线时产生卖出信号
+- **多维指标验证**：同时使用 21、55、144 周期的简单移动平均线（MA）和指数移动平均线（EMA）进行趋势确认。
+- **严格趋势判定**：
+    - **做多信号**：短期均线（21）位于中期（55）和长期（144）均线之上，且中期均线位于长期均线之上，同时 MA 和 EMA 系统需形成一致的多头排列。
+    - **做空信号**：短期均线（21）位于中期（55）和长期（144）均线之下，且中期均线位于长期均线之下，同时 MA 和 EMA 系统需形成一致的空头排列。
+- **突破交易逻辑**：当最新价格有效突破（高于或低于）所有 MA 和 EMA 指标线时，触发突破入场信号。
+- **动态风险控制**：
+    - **冷却期机制**：通过配置 `cooldownMinutes` 避免在短时间内频繁开仓，防止震荡行情的反复磨损。
+    - **动态杠杆**：根据价格与均线的偏离度（波动率）动态调整杠杆倍数（如 5x/10x/20x），降低极端行情风险。
+- **多空双向支持**：支持趋势跟随和突破两种模式，具备自动止盈止损管理。
 
 ### 区间震荡策略
 
@@ -176,9 +191,9 @@ private RangeTradingStrategyV7Service rangeTradingStrategyService;
 使用Spring的@Scheduled实现定时任务：
 
 - 市场数据监控 (1秒间隔)
-- 交易信号检测 (10秒间隔)
-- 订单状态同步 (200毫秒间隔)
-- 仓位管理 (2秒间隔)
+- 交易信号检测 (200毫秒 - 1秒间隔)
+- 订单执行监控 (200毫秒间隔)
+- 仓位管理 (1秒 - 2秒间隔)
 
 ## 日志与监控
 

@@ -1,215 +1,227 @@
 # HY Strategy Trading Service
 
-## Project Overview
+## Project Introduction
 
-HY Strategy Trading Service is an automated trading system based on the Bitget Exchange API, providing implementations
-of various quantitative trading strategies. The service supports real-time market data monitoring, automatic order
-placement, and take-profit/stop-loss management.
+HY Strategy Trading Service is an automated trading system based on the Bitget Exchange API, providing various quantitative trading strategy implementations. The service supports real-time market data monitoring, automated order placement, take-profit and stop-loss management, and more.
 
 ## Main Features
 
 - **Trading Strategies**
-    - Dual Moving Average Strategy (V2): Suitable for trending markets, high risk-reward ratio, supports both long and
-      short positions
-    - Range Trading Strategy (V7): Suitable for wide-range or swing markets, balanced win rate and risk-reward ratio,
-      supports both long and short positions
-    - Short-term Strategy (V1): Suitable for short-term markets, high risk and high return, supports both long and short
-      positions
-    - Martingale Strategy: Suitable for ranging markets, stable and high win rate, supports both long and short
-      positions
+    - Dual Moving Average Strategy: A trend-following and breakout strategy based on a multi-MA/EMA system. High risk-reward ratio, supports dynamic leverage.
+    - Range Trading Strategy: Suitable for wide-range oscillation or swing markets. Balanced win rate and risk-reward ratio, supports both long and short directions.
+    - Short-term Strategy: Suitable for short-term market fluctuations. High risk, high return, supports both long and short directions.
+    - Martingale Strategy: Suitable for oscillating markets. Stable, high win rate, supports both long and short directions.
+
 - **Account Management**
-    - Leverage settings
-    - Margin mode management
-    - Position mode settings
+    - Leverage Settings
+    - Margin Mode Management
+    - Position Mode Settings
+
 - **Order Management**
-    - Real-time order placement
-    - Take-profit/stop-loss orders
-    - Order status monitoring
+    - Real-time Order Placement
+    - Take Profit and Stop Loss (TP/SL) Orders
+    - Order Status Monitoring
+
 - **Market Data**
-    - Real-time market data subscription
-    - Historical K-line data retrieval
-    - Market signal analysis
+    - Real-time Market Data Subscription
+    - Historical K-line Data Retrieval
+    - Market Signal Analysis
 
 ## Technical Architecture
 
-This project is developed based on the Spring Boot framework with modular design:
+This project is developed based on the Spring Boot framework with a modular design:
 
 - **Core Modules**
-    - Bitget API client
-    - Trading strategy implementation
-    - Task scheduling system
+    - Bitget API Client
+    - Trading Strategy Implementations
+    - Task Scheduling System
 - **Functional Modules**
-    - Market data analysis
-    - Order execution engine
-    - Risk control system
-- **Integration Services**
-    - Email notification
-    - Thread pool management
+    - Market Data Analysis
+    - Order Execution Engine
+    - Risk Control System
+- **Integrated Services**
+    - Email Notification
+    - Thread Pool Management
     - Logging
 
 ## System Requirements
 
 - Java 21+
 - Spring Boot 3.5.x
-- Bitget API access
-- Email server configuration (optional)
+- Bitget API Access Permissions
+- Mail Server Configuration (Optional)
 
-## Installation & Deployment
+## Installation and Deployment
 
-1. Clone the repository
+1. Clone the Repository
 
 ```bash
 git clone https://gitee.com/heiye115/hy-strategy-trader-service.git
 ```
 
-2. Configure Bitget API credentials
+2. Configure Bitget API Credentials
 
 ```properties
 # application.properties
-# Account 1: Martingale strategy dedicated API Key
+# Account 1: Dedicated API Key for Martingale Strategy
+bitget.accounts[0].name=MARTINGALE
 bitget.accounts[0].api-key=Your API Key
 bitget.accounts[0].secret-key=Your Secret Key
 bitget.accounts[0].passphrase=Your Passphrase
-# Account 2: Dual Moving Average strategy dedicated API Key
+# Account 2: Dedicated API Key for Dual Moving Average Strategy
+bitget.accounts[1].name=DMA
 bitget.accounts[1].api-key=Your API Key
 bitget.accounts[1].secret-key=Your Secret Key
 bitget.accounts[1].passphrase=Your Passphrase
-
 ```
 
-3. Build the project
+3. Build the Project
 
 ```bash
 mvn clean package -Dmaven.test.skip=true
 ```
 
-4. Run the service
+4. Run the Service
 
 ```bash
 java -jar hy-strategy-trader-service.jar
-
-For Linux:
-setsid java -Djasypt.encryptor.password=your_password -jar hy-strategy-trader-service.jar > app.log 2>&1 &
 ```
+
+- Running on Linux:
+    ```bash
+    setsid java -Djasypt.encryptor.password=YourPassword -jar hy-strategy-trader-service.jar > app.log 2>&1 &
+    ```
 
 ## Usage Instructions
 
 1. **Start the Service**
 
 ```java
-// Main class to start
+// Main application class
 com.hy.HyStratTraderServiceApplication
 ```
 
 2. **Strategy Configuration**
 
 - Configure trading parameters in the strategy service class:
-    - Trading pair (BTC/USDT, etc.)
-    - Time period (1h, 4h, etc.)
-    - Position size
-    - Take-profit and stop-loss ratios
-    - Leverage settings
+    - Trading Pairs (BTC/USDT, etc.)
+    - Timeframes (1h, 4h, etc.)
+    - Open Amount
+    - Take Profit and Stop Loss Ratios
+    - Leverage Settings
 
-3. **Start Strategy**
+3. **Strategy Activation**
 
-- Use Spring injection to start the specified strategy:
+- Activate specific strategies via Spring injection:
 
 ```java
 
 @Autowired
-private DualMovingAverageStrategyV2Service dualMovingAverageStrategyService;
+private DoubleMovingAverageStrategyService doubleMovingAverageStrategyService;
 
 @Autowired
-private RangeTradingStrategyV7Service rangeTradingStrategyService;
+private RangeTradingStrategyService rangeTradingStrategyService;
+
+@Autowired
+private MartingaleStrategyService martingaleStrategyService;
+
+@Autowired
+private ShortTermTradingStrategyService shortTermTradingStrategyService;
 ```
 
 ## API Interface
 
-The service encapsulates the complete Bitget exchange API, including:
+The service encapsulates the complete Bitget Exchange API interface, including:
 
 - **Market Data**
-    - Get K-line data
-    - Real-time market subscription
-    - Depth order book query
-- **Trading Functions**
-    - Place/cancel orders
-    - Take-profit and stop-loss order management
-    - Order status query
+    - Get K-line Data
+    - Subscribe to Real-time Market Data
+    - Depth Order Book Query
+- **Trading Features**
+    - Place/Cancel Orders
+    - TP/SL Order Management
+    - Order Status Query
 - **Account Management**
-    - Account information query
-    - Leverage settings
-    - Margin mode management
+    - Account Information Query
+    - Leverage Settings
+    - Margin Mode Management
 
 ## Strategy Implementation
 
 ### Dual Moving Average Strategy
 
-Generates trading signals based on two moving averages of different periods:
+A composite trend-following and breakout strategy based on a combination of multiple Moving Averages (MA/EMA):
 
-- Buy signal when the short-term MA crosses above the long-term MA
-- Sell signal when the short-term MA crosses below the long-term MA
+- **Multi-dimensional Indicator Verification**: Simultaneously uses 21, 55, and 144-period Simple Moving Averages (MA) and Exponential Moving Averages (EMA) for trend confirmation.
+- **Strict Trend Determination**:
+    - **Long Signal**: The short-term average (21) is above the medium-term (55) and long-term (144) averages, and the medium-term average is above the long-term average, with both MA and EMA systems showing a consistent bullish alignment.
+    - **Short Signal**: The short-term average (21) is below the medium-term (55) and long-term (144) averages, and the medium-term average is below the long-term average, with both MA and EMA systems showing a consistent bearish alignment.
+- **Breakout Trading Logic**: Triggered when the latest price effectively breaks above or below all MA and EMA indicator lines.
+- **Dynamic Risk Control**:
+    - **Cooldown Period**: Prevents frequent opening of positions within a short time via `cooldownMinutes` configuration, avoiding erosion during oscillating markets.
+    - **Dynamic Leverage**: Automatically adjusts leverage (e.g., 5x/10x/20x) based on the deviation (volatility) of the price from the averages, reducing risks in extreme market conditions.
+- **Bidirectional Support**: Supports both trend-following and breakout modes, with automated TP/SL management.
 
-### Range Oscillation Strategy
+### Range Trading Strategy
 
-Identifies price oscillation ranges for buying low and selling high:
+Identifies price oscillation ranges for "sell high, buy low" operations:
 
-- Automatically identifies recent price fluctuation ranges
-- Sets dynamic take-profit and stop-loss
+- Automatically identifies recent price volatility ranges
+- Sets dynamic TP/SL
 - Supports historical K-line data analysis
 
 ### Short-term Strategy
 
-Quick trading based on short-term price fluctuations:
+Utilizes short-term price fluctuations for rapid trading:
 
-- Quickly captures market volatility
+- Rapidly captures market volatility
 - High-frequency order placement
 - Suitable for intraday trading
 
 ### Martingale Strategy
 
-Capital management based on the Martingale principle:
+Based on the Martingale principle for capital management:
 
-- Small initial position
+- Small initial position size
 - Increase position size proportionally after each loss
-- Suitable for ranging markets
+- Suitable for oscillating markets
 
 ## Task Scheduling
 
-Uses Spring's @Scheduled for scheduled tasks:
+Uses Spring's `@Scheduled` for periodic tasks:
 
-- Market data monitoring (1 second interval)
-- Trading signal detection (10 seconds interval)
-- Order status synchronization (200 milliseconds interval)
-- Position management (2 seconds interval)
+- Market Data Monitoring (1-second interval)
+- Trading Signal Detection (200ms - 1s interval)
+- Order Execution Monitoring (200ms interval)
+- Position Management (1s - 2s interval)
 
-## Logging & Monitoring
+## Logging and Monitoring
 
-- Complete trading log records
+- Comprehensive trading logs
 - Exception handling mechanism
-- Email notification function
+- Email notification feature
 
-## Security Notes
+## Security Precautions
 
-- Strongly recommend using sub-accounts for API operations
-- API keys should be kept safe
-- It is recommended to use a separate trading account
+- Highly recommended to use sub-accounts for API operations
+- API keys should be kept secure
+- Recommended to use independent trading accounts
 - Set appropriate risk control parameters
 - Regularly monitor trading logs
 
 ## Business Cooperation
 
-We undertake quantitative trading strategy development and customization services. Contact: heiye115@gmail.com
+Providing quantitative trading strategy development and customization services. Contact: heiye115@gmail.com WeChat: [heiye5050].
 
-- **Note**
-    - Use my invitation code xq5v
-    - Bitget Spot 50%｜Contract 50%｜On-chain trading 40% fee discount
-    - Spot: 0.05% 👈⏬0.1%
-    - Contract limit: 0.01% 👈⏬0.02%
-    - Contract market: 0.03% 👈⏬0.06%
-    - On-chain trading: 0.3% 👈⏬0.5%
+- **Notes**
+    - Use my invitation code: xq5v
+    - Bitget Spot: 50% | Futures: 50% | On-chain: 40% fee reduction
+    - Spot: 0.05% 👈 ⏬ 0.1%
+    - Futures Limit: 0.01% 👈 ⏬ 0.02%
+    - Futures Market: 0.03% 👈 ⏬ 0.06%
+    - On-chain: 0.3% 👈 ⏬ 0.5%
     - https://www.bitget.cloud/zh-CN/register?channelCode=327r&vipCode=xq5v
 
 ## Disclaimer
 
-This project is for learning and research purposes only. Users bear their own trading risks. The author is not
-responsible for any losses resulting from the use of this project.
+This project is for educational and research purposes only. Users assume all trading risks. The author is not responsible for any losses incurred from using this project.
