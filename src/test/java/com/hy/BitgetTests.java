@@ -4,6 +4,7 @@ import com.hy.common.config.BitgetProperties;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.MartingaleStrategyConfig;
 import com.hy.modules.contract.service.MartingaleStrategyService;
+import io.github.hyperliquid.sdk.HyperliquidClient;
 import org.jasypt.util.text.AES256TextEncryptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +66,9 @@ class BitgetTests {
     @Test
     public void t3() {
         System.out.println(bitgetProperties);
+        HyperliquidClient client = HyperliquidClient.builder()
+                .testNetUrl()
+                .build();
     }
 
     public static void main(String[] args) {
