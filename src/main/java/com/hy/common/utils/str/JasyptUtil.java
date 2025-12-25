@@ -24,6 +24,7 @@ public class JasyptUtil {
         return textEncryptor.encrypt(content);
     }
 
+
     /**
      * 解密
      **/
@@ -32,4 +33,5 @@ public class JasyptUtil {
         textEncryptor.setPassword(password);
         return textEncryptor.decrypt(content);
     }
+
 }
