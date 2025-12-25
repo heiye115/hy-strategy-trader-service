@@ -9,13 +9,26 @@ import org.jasypt.util.text.AES256TextEncryptor;
  */
 public class JasyptUtil {
     public static void main(String[] args) {
-        String encrypt = "*";
-        String password = "123456"; // 解密密码
+        System.out.println(encrypt("1", "1"));
+        System.out.println(decrypt("1", "yz+tfTR4e01iLnVfok5WZOXk7m3JbXufoc7X6HpFHYlu8gvxR37WtvUabsE8DleF"));
+    }
+
+
+    /**
+     * 加密
+     **/
+    public static String encrypt(String password, String content) {
         AES256TextEncryptor textEncryptor = new AES256TextEncryptor();
-        // 这是加密密钥，等下会用于解密
         textEncryptor.setPassword(password);
-        // 明文密码
-        String encrypted = textEncryptor.encrypt(encrypt);
-        System.out.println("ENC(" + encrypted + ")");
+        return textEncryptor.encrypt(content);
+    }
+
+    /**
+     * 解密
+     **/
+    public static String decrypt(String password, String content) {
+        AES256TextEncryptor textEncryptor = new AES256TextEncryptor();
+        textEncryptor.setPassword(password);
+        return textEncryptor.decrypt(content);
     }
 }
