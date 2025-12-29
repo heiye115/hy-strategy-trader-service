@@ -2,8 +2,6 @@ package com.hy.modules.contract.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
-import com.bitget.custom.entity.BitgetOrderDetailResp;
-import com.bitget.openapi.dto.response.ResponseResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.MailService;
@@ -60,7 +58,7 @@ public class DoubleMovingAverageStrategyV2Service {
 
 
     private final HyperliquidClient client = HyperliquidClient.builder()
-            .testNetUrl()
+            //.testNetUrl()
             .addPrivateKey("")
             //.addApiWallet("", "")
             .build();
@@ -213,7 +211,7 @@ public class DoubleMovingAverageStrategyV2Service {
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
             put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10.0)));
-            put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
+            //put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
             //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
             //put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
@@ -812,12 +810,13 @@ public class DoubleMovingAverageStrategyV2Service {
             // 设置仓位止盈
             placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide());
 
-            // 获取仓位
-            Map<String, ClearinghouseState.Position> positionMap = getAllPosition();
-            ClearinghouseState.Position position = positionMap.get(orderParam.getSymbol());
-
+            //获取账户信息
+            ClearinghouseState clearinghouseState = getAccountInfo();
+            List<JsonNode> statuses = bulkOrder.getResponse().getData().getStatuses();
+            JsonNode first = statuses.getFirst();
+            String oid = first.get("filled").get("oid").asText();
             // 发送HTML格式的邮件通知（传入实际成交数据）
-            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, null));
+            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, clearinghouseState, oid));
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", toJson(orderParam), toJson(bulkOrder), e);
         }
@@ -866,7 +865,7 @@ public class DoubleMovingAverageStrategyV2Service {
             Bar bar = new BaseBar(
                     candleDuration,
                     Instant.ofEpochMilli(candle.getStartTimestamp()),
-                    Instant.ofEpochMilli(candle.getEndTimestamp()),
+                    null,//Instant.ofEpochMilli(candle.getEndTimestamp()),
                     series.numFactory().numOf(candle.getOpenPrice()),
                     series.numFactory().numOf(candle.getHighPrice()),
                     series.numFactory().numOf(candle.getLowPrice()),
@@ -1257,14 +1256,21 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 构建HTML格式的订单邮件内容（基于实际成交数据）
      *
-     * @param order           订单参数信息
-     * @param orderDetailResp 订单详情响应（包含实际成交数据）
+     * @param order              订单参数信息
+     * @param clearinghouseState 清算状态
      * @return HTML格式的邮件内容
      */
-    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order, ResponseResult<BitgetOrderDetailResp> orderDetailResp) {
+    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order, ClearinghouseState clearinghouseState, String oid) {
+        ClearinghouseState.Position position = null;
+        List<ClearinghouseState.AssetPositions> assetPositions = clearinghouseState.getAssetPositions();
+        for (ClearinghouseState.AssetPositions assetPosition : assetPositions) {
+            if (order.getSymbol().equals(assetPosition.getPosition().getCoin())) {
+                position = assetPosition.getPosition();
+                break;
+            }
+        }
         // 提取实际成交数据
-        boolean hasRealData = (orderDetailResp != null && orderDetailResp.getData() != null && BG_RESPONSE_CODE_SUCCESS.equals(orderDetailResp.getCode()));
-        BitgetOrderDetailResp orderDetail = hasRealData ? orderDetailResp.getData() : null;
+        boolean hasRealData = (position != null);
 
         // 判断交易方向
         boolean isBuy = "buy".equalsIgnoreCase(order.getSide());
@@ -1286,8 +1292,8 @@ public class DoubleMovingAverageStrategyV2Service {
 
         if (hasRealData) {
             // 成交均价
-            if (orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())) {
-                actualPriceText = orderDetail.getPriceAvg();
+            if (position.getEntryPx() != null) {
+                actualPriceText = position.getEntryPx();
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>实际成交价</td>" +
                                 "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDC</td></tr>",
@@ -1296,8 +1302,8 @@ public class DoubleMovingAverageStrategyV2Service {
             }
 
             // 实际成交数量
-            if (orderDetail.getBaseVolume() != null && !"0".equals(orderDetail.getBaseVolume())) {
-                actualSizeText = orderDetail.getBaseVolume();
+            if (position.getSzi() != null) {
+                actualSizeText = position.getSzi();
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>实际成交量</td>" +
                                 "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>",
@@ -1306,8 +1312,8 @@ public class DoubleMovingAverageStrategyV2Service {
             }
 
             // 成交金额（USDC总额）
-            if (orderDetail.getQuoteVolume() != null && !"0".equals(orderDetail.getQuoteVolume())) {
-                BigDecimal quoteVolume = new BigDecimal(orderDetail.getQuoteVolume());
+            if (position.getPositionValue() != null) {
+                BigDecimal quoteVolume = new BigDecimal(position.getPositionValue());
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>成交金额</td>" +
                                 "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #8b5cf6;'>%s USDC</td></tr>",
@@ -1316,56 +1322,52 @@ public class DoubleMovingAverageStrategyV2Service {
             }
 
             // 手续费
-            if (orderDetail.getFee() != null) {
-                feeText = orderDetail.getFee();
-                BigDecimal feeAmount = new BigDecimal(feeText).abs();
-                actualDataRows += String.format(
-                        "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>手续费</td>" +
-                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%s USDC</td></tr>",
-                        feeAmount.setScale(4, RoundingMode.HALF_UP)
-                );
-            }
+            BigDecimal feeAmount = BigDecimal.ZERO;
+            actualDataRows += String.format(
+                    "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>手续费</td>" +
+                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%s USDC</td></tr>",
+                    feeAmount.setScale(4, RoundingMode.HALF_UP)
+            );
 
             // 订单状态
-            if (orderDetail.getState() != null) {
-                String state = orderDetail.getState();
-                String stateColor = "#6b7280";
-                String stateIcon = "";
-                String stateLabel = "";
+            String state = "filled";
+            String stateColor = "#6b7280";
+            String stateIcon = "";
+            String stateLabel = "";
 
-                switch (state) {
-                    case "filled":
-                        stateLabel = "全部成交";
-                        stateColor = "#10b981";
-                        stateIcon = "✅";
-                        break;
-                    case "partially_filled":
-                        stateLabel = "部分成交";
-                        stateColor = "#f59e0b";
-                        stateIcon = "⏳";
-                        break;
-                    case "live":
-                        stateLabel = "等待成交";
-                        stateColor = "#3b82f6";
-                        stateIcon = "🔵";
-                        break;
-                    case "canceled":
-                        stateLabel = "已撤销";
-                        stateColor = "#ef4444";
-                        stateIcon = "❌";
-                        break;
-                    default:
-                        stateLabel = state;
-                        stateIcon = "ℹ️";
-                }
-
-                orderStateText = String.format(
-                        "<div style='text-align: center; margin-top: 10px;'>" +
-                                "<span style='display: inline-block; padding: 6px 16px; background-color: %s; color: #ffffff; border-radius: 12px; font-size: 13px; font-weight: 600;'>%s %s</span>" +
-                                "</div>",
-                        stateColor, stateIcon, stateLabel
-                );
+            switch (state) {
+                case "filled":
+                    stateLabel = "全部成交";
+                    stateColor = "#10b981";
+                    stateIcon = "✅";
+                    break;
+                case "partially_filled":
+                    stateLabel = "部分成交";
+                    stateColor = "#f59e0b";
+                    stateIcon = "⏳";
+                    break;
+                case "live":
+                    stateLabel = "等待成交";
+                    stateColor = "#3b82f6";
+                    stateIcon = "🔵";
+                    break;
+                case "canceled":
+                    stateLabel = "已撤销";
+                    stateColor = "#ef4444";
+                    stateIcon = "❌";
+                    break;
+                default:
+                    stateLabel = state;
+                    stateIcon = "ℹ️";
             }
+
+            orderStateText = String.format(
+                    "<div style='text-align: center; margin-top: 10px;'>" +
+                            "<span style='display: inline-block; padding: 6px 16px; background-color: %s; color: #ffffff; border-radius: 12px; font-size: 13px; font-weight: 600;'>%s %s</span>" +
+                            "</div>",
+                    stateColor, stateIcon, stateLabel
+            );
+
         }
 
         // 计算盈亏比（基于实际成交价或预估价）
@@ -1377,10 +1379,10 @@ public class DoubleMovingAverageStrategyV2Service {
             BigDecimal actualSize = new BigDecimal(order.getSize());
 
             // 优先使用实际成交价，否则使用预估价
-            if (hasRealData && orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())) {
-                currentPrice = new BigDecimal(orderDetail.getPriceAvg());
-                if (orderDetail.getBaseVolume() != null && !"0".equals(orderDetail.getBaseVolume())) {
-                    actualSize = new BigDecimal(orderDetail.getBaseVolume());
+            if (hasRealData && position.getEntryPx() != null) {
+                currentPrice = new BigDecimal(position.getEntryPx());
+                if (position.getSzi() != null) {
+                    actualSize = new BigDecimal(position.getSzi()).abs();
                 }
             } else {
                 // 使用预估价格
@@ -1415,8 +1417,7 @@ public class DoubleMovingAverageStrategyV2Service {
             BigDecimal rewardAmountUSDC = rewardAmount.multiply(actualSize);
             BigDecimal riskRewardRatio = rewardAmount.divide(riskAmount, 2, RoundingMode.HALF_UP);
 
-            String priceLabel = hasRealData && orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())
-                    ? "实际成交价" : "预估开仓价";
+            String priceLabel = "实际成交价";
 
             riskRewardHtml = String.format(
                     "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>%s</td>" +
@@ -1439,11 +1440,11 @@ public class DoubleMovingAverageStrategyV2Service {
 
         // 账户余额（可选）
         String accountBalanceRow = "";
-        if (order.getAccountBalance() != null) {
+        if (clearinghouseState.getWithdrawable() != null) {
             accountBalanceRow = String.format(
                     "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>账户余额</td>" +
                             "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s USDC</td></tr>",
-                    order.getAccountBalance()
+                    clearinghouseState.getWithdrawable()
             );
         }
 
@@ -1552,13 +1553,13 @@ public class DoubleMovingAverageStrategyV2Service {
                                 "    <table style='width: 100%; border-collapse: collapse;'>" + riskRewardHtml + "</table>" +
                                 "</div>",
                 order.getClientOid(),
-                hasRealData && orderDetail.getOrderId() != null ?
+                hasRealData && oid != null ?
                         String.format(
                                 "<div style='display: flex; align-items: center; justify-content: space-between;'>" +
                                         "    <span style='color: #6b7280; font-size: 14px;'>🏦 交易所订单ID</span>" +
                                         "    <span style='color: #1f2937; font-family: monospace; font-size: 12px;'>%s</span>" +
                                         "</div>",
-                                orderDetail.getOrderId()
+                                oid
                         ) : "",
                 DateUtil.now()
         );

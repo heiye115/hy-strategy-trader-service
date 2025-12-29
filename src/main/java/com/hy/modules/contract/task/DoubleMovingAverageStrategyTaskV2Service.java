@@ -1,6 +1,6 @@
 package com.hy.modules.contract.task;
 
-import com.hy.modules.contract.service.DoubleMovingAverageStrategyService;
+import com.hy.modules.contract.service.DoubleMovingAverageStrategyV2Service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -9,12 +9,12 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@ConditionalOnProperty(prefix = "task.doublemovingaveragebk", name = "enabled", havingValue = "true")
-public class DoubleMovingAverageStrategyTaskService {
+@ConditionalOnProperty(prefix = "task.doublemovingaverage", name = "enabled", havingValue = "true")
+public class DoubleMovingAverageStrategyTaskV2Service {
 
-    private final DoubleMovingAverageStrategyService doubleMovingAverageStrategyService;
+    private final DoubleMovingAverageStrategyV2Service doubleMovingAverageStrategyService;
 
-    public DoubleMovingAverageStrategyTaskService(DoubleMovingAverageStrategyService doubleMovingAverageStrategyService) {
+    public DoubleMovingAverageStrategyTaskV2Service(DoubleMovingAverageStrategyV2Service doubleMovingAverageStrategyService) {
         this.doubleMovingAverageStrategyService = doubleMovingAverageStrategyService;
     }
 
