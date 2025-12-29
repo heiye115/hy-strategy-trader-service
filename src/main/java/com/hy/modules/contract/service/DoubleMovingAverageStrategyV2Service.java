@@ -2,10 +2,9 @@ package com.hy.modules.contract.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
-import com.bitget.custom.entity.*;
+import com.bitget.custom.entity.BitgetOrderDetailResp;
 import com.bitget.openapi.dto.response.ResponseResult;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.hy.common.enums.BitgetEnum;
 import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.MailService;
 import com.hy.modules.contract.entity.DoubleMovingAverageData;
@@ -14,10 +13,7 @@ import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
 import io.github.hyperliquid.sdk.HyperliquidClient;
 import io.github.hyperliquid.sdk.apis.Info;
 import io.github.hyperliquid.sdk.model.info.*;
-import io.github.hyperliquid.sdk.model.order.BulkOrder;
-import io.github.hyperliquid.sdk.model.order.Cloid;
-import io.github.hyperliquid.sdk.model.order.OrderRequest;
-import io.github.hyperliquid.sdk.model.order.OrderWithTpSlBuilder;
+import io.github.hyperliquid.sdk.model.order.*;
 import io.github.hyperliquid.sdk.model.subscription.CandleSubscription;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -255,8 +251,6 @@ public class DoubleMovingAverageStrategyV2Service {
      * 初始化方法双均线策略
      */
     public void init() {
-        //初始化Bitget账户配置
-        //initializeBitgetAccount();
         //启动下单消费者
         startOrderConsumer();
         //通过WebSocket订阅行情数据
@@ -264,35 +258,6 @@ public class DoubleMovingAverageStrategyV2Service {
         log.info("双均线策略加载完成, 当前配置: {}", toJson(CONFIG_MAP));
     }
 
-    /**
-     * 初始化Bitget账户配置
-     * 设置杠杆、持仓模式和保证金模式等基础交易参数
-     */
-//    public void initializeBitgetAccount() {
-//        try {
-//            for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
-//                if (!config.getEnable()) continue;
-//                // 设置保证金模式为逐仓
-//                setMarginModeForSymbol(config);
-//            }
-//            // 设置持仓模式为单向持仓
-//            setPositionMode();
-//        } catch (Exception e) {
-//            log.error("initializeBitgetAccount-error:", e);
-//        }
-//    }
-
-    /**
-     * 为指定币种设置保证金模式
-     */
-//    private void setMarginModeForSymbol(DoubleMovingAverageStrategyConfig config) {
-//        try {
-//            ResponseResult<BitgetSetMarginModeResp> rs = bitgetSession.setMarginMode(config.getSymbol(), BG_PRODUCT_TYPE_USDT_FUTURES, DEFAULT_CURRENCY_USDT, BG_MARGIN_MODE_ISOLATED);
-//            log.info("setMarginModeForSymbol-设置保证金模式成功: symbol={}, result={}", config.getSymbol(), JsonUtil.toJson(rs));
-//        } catch (Exception e) {
-//            log.error("setMarginModeForSymbol-设置保证金模式失败: symbol={}", config.getSymbol(), e);
-//        }
-//    }
 
     /**
      * 为指定币种设置杠杆倍数
@@ -519,15 +484,15 @@ public class DoubleMovingAverageStrategyV2Service {
      */
     private Duration getCooldownPeriod(String timeFrame) {
         // 优先匹配已知周期，提供明确的冷却策略
-        if (BitgetEnum.H1.getCode().equals(timeFrame)) {
+        if (CandleInterval.HOUR_1.getCode().equals(timeFrame)) {
             return Duration.ofHours(4);  // 1小时周期 → 4小时冷却（4倍周期）
-        } else if (BitgetEnum.H4.getCode().equals(timeFrame)) {
+        } else if (CandleInterval.HOUR_4.getCode().equals(timeFrame)) {
             return Duration.ofHours(12);  // 4小时周期 → 12小时冷却（3倍周期，优化后）
-        } else if (BitgetEnum.M15.getCode().equals(timeFrame)) {
+        } else if (CandleInterval.MINUTE_15.getCode().equals(timeFrame)) {
             return Duration.ofHours(1);  // 15分钟周期 → 1小时冷却（备用）
-        } else if (BitgetEnum.M30.getCode().equals(timeFrame)) {
+        } else if (CandleInterval.MINUTE_30.getCode().equals(timeFrame)) {
             return Duration.ofHours(2);  // 30分钟周期 → 2小时冷却（备用）
-        } else if (BitgetEnum.M5.getCode().equals(timeFrame)) {
+        } else if (CandleInterval.MINUTE_5.getCode().equals(timeFrame)) {
             return Duration.ofMinutes(30);  // 5分钟周期 → 30分钟冷却（备用）
         }
         // 默认返回4小时冷却期（保守策略）
@@ -845,13 +810,14 @@ public class DoubleMovingAverageStrategyV2Service {
                 return;
             }
             // 设置仓位止盈
-            placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide(), BG_PLAN_TYPE_PROFIT_PLAN);
+            placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide());
 
-            // 获取订单详情（包含实际成交数据）
-            ResponseResult<BitgetOrderDetailResp> orderDetailResp = null;//bitgetSession.getOrderDetail(orderParam.getSymbol(), orderResult.getOrderId());
+            // 获取仓位
+            Map<String, ClearinghouseState.Position> positionMap = getAllPosition();
+            ClearinghouseState.Position position = positionMap.get(orderParam.getSymbol());
 
             // 发送HTML格式的邮件通知（传入实际成交数据）
-            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, orderDetailResp));
+            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, null));
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", toJson(orderParam), toJson(bulkOrder), e);
         }
@@ -861,31 +827,13 @@ public class DoubleMovingAverageStrategyV2Service {
      * 设置止盈止损计划委托下单
      * 创建计划委托订单，当价格触发时自动执行止盈或止损
      */
-    public void placeTakeProfitStopLossOrder(String symbol, String triggerPrice, String executePrice, String size, String holdSide, String planType) {
-        BitgetPlaceTpslOrderParam param = new BitgetPlaceTpslOrderParam();
-        param.setClientOid(IdUtil.getSnowflakeNextIdStr());
-        param.setMarginCoin(DEFAULT_CURRENCY_USDT);
-        param.setProductType(BG_PRODUCT_TYPE_USDT_FUTURES);
-        param.setSymbol(symbol);
-        param.setPlanType(planType);
-        param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
-        param.setTriggerPrice(triggerPrice);
-        if (executePrice != null) {
-            param.setExecutePrice(executePrice);
-        }
-        if (size != null) {
-            param.setSize(size);
-        }
-        param.setHoldSide(holdSide);
+    public void placeTakeProfitStopLossOrder(String symbol, String executePrice, String size, String holdSide) {
+        OrderRequest req = OrderRequest.Close.limit(Tif.GTC, symbol, !BG_SIDE_BUY.equals(holdSide), size, executePrice, Cloid.auto());
         try {
-            ResponseResult<BitgetPlaceTpslOrderResp> rs = null;//bitgetSession.placeTpslOrder(param);
-            if (rs == null) {
-                log.error("placeTakeProfitStopLossOrder: 设置止盈止损委托计划失败, param: {}", toJson(param));
-                return;
-            }
-            log.info("placeTakeProfitStopLossOrder: 设置止盈止损委托计划成功, param: {}, result: {}", toJson(param), toJson(rs));
+            Order order = client.getExchange().order(req);
+            log.info("placeTakeProfitStopLossOrder: 设置止盈止损委托计划成功, param: {}, result: {}", toJson(req), toJson(order));
         } catch (Exception e) {
-            log.error("placeTakeProfitStopLossOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", toJson(param), e.getMessage());
+            log.error("placeTakeProfitStopLossOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", toJson(req), e.getMessage());
         }
     }
 
@@ -1010,6 +958,7 @@ public class DoubleMovingAverageStrategyV2Service {
             // 获取当前计划止盈止损委托
             Map<String, List<FrontendOpenOrder>> entrustedOrdersMap = getOrdersPlanPending();
             //log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
+
             // 更新止盈止损计划
             updateTakeProfitStopLossPlans(positionMap, entrustedOrdersMap);
         } catch (Exception e) {
@@ -1216,7 +1165,7 @@ public class DoubleMovingAverageStrategyV2Service {
                 // 仅处理止损计划订单
                 if (!"Stop Market".equals(order.getOrderType())) continue;
 
-                BigDecimal triggerPrice = new BigDecimal(Optional.ofNullable(order.getTriggerPrice()).orElse("0"));
+                BigDecimal triggerPrice = new BigDecimal(Optional.ofNullable(order.getTriggerPx()).orElse("0"));
                 String side = order.getSide();
 
                 // 做多止损 (SELL)
@@ -1228,7 +1177,7 @@ public class DoubleMovingAverageStrategyV2Service {
                     updateShortStopLoss(order, triggerPrice, data.getMaxValue(), stopProfitPrice);
                 }
             } catch (Exception inner) {
-                log.error("updateStopLossOrders: 单个委托处理失败 orderId={}, error={}", order.getOrderId(), inner.getMessage());
+                log.error("updateStopLossOrders: 单个委托处理失败 orderId={}, error={}", order.getOid(), inner.getMessage());
             }
         }
     }
@@ -1237,7 +1186,7 @@ public class DoubleMovingAverageStrategyV2Service {
      * 更新多头止损价
      * 止损价向上移动策略: 取 max(最低价, 动态止盈价)
      */
-    private void updateLongStopLoss(BitgetOrdersPlanPendingResp.EntrustedOrder order,
+    private void updateLongStopLoss(FrontendOpenOrder order,
                                     BigDecimal currentTriggerPrice,
                                     BigDecimal minValue,
                                     BigDecimal stopProfitPrice) {
@@ -1252,7 +1201,7 @@ public class DoubleMovingAverageStrategyV2Service {
 
         // 仅当新触发价更高时才更新 (止损向上移动)
         if (gt(newTriggerPrice, currentTriggerPrice)) {
-            modifyStopLossOrder(order, newTriggerPrice);
+            modifyStopLossOrder(order, newTriggerPrice.toPlainString());
         }
     }
 
@@ -1260,7 +1209,7 @@ public class DoubleMovingAverageStrategyV2Service {
      * 更新空头止损价
      * 止损价向下移动策略: 取 min(最高价, 动态止盈价)
      */
-    private void updateShortStopLoss(BitgetOrdersPlanPendingResp.EntrustedOrder order, BigDecimal currentTriggerPrice, BigDecimal maxValue, BigDecimal stopProfitPrice) {
+    private void updateShortStopLoss(FrontendOpenOrder order, BigDecimal currentTriggerPrice, BigDecimal maxValue, BigDecimal stopProfitPrice) {
         BigDecimal newTriggerPrice = maxValue;
 
         // 如果动态止盈价有效且更优，则使用动态止盈价
@@ -1272,7 +1221,7 @@ public class DoubleMovingAverageStrategyV2Service {
 
         // 仅当新触发价更低且有效时才更新 (止损向下移动)
         if (lt(newTriggerPrice, currentTriggerPrice) && gt(newTriggerPrice, BigDecimal.ZERO)) {
-            modifyStopLossOrder(order, newTriggerPrice);
+            modifyStopLossOrder(order, newTriggerPrice.toPlainString());
         }
     }
 
@@ -1289,20 +1238,17 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 修改止盈止损计划
      */
-    private void modifyStopLossOrder(BitgetOrdersPlanPendingResp.EntrustedOrder order, BigDecimal newTriggerPrice) {
+    private void modifyStopLossOrder(FrontendOpenOrder order, String newTriggerPrice) {
         try {
-            BitgetModifyTpslOrderParam param = new BitgetModifyTpslOrderParam();
-            param.setOrderId(order.getOrderId());
-            param.setMarginCoin(order.getMarginCoin());
-            param.setProductType(BG_PRODUCT_TYPE_USDT_FUTURES);
-            param.setSymbol(order.getSymbol());
-            param.setTriggerPrice(newTriggerPrice.toPlainString());
-            param.setTriggerType(BG_TRIGGER_TYPE_FILL_PRICE);
-            param.setSize("");
-            ResponseResult<BitgetPlaceTpslOrderResp> result = bitgetSession.modifyTpslOrder(param);
-            if (!BG_RESPONSE_CODE_SUCCESS.equals(result.getCode())) {
-                log.error("modifyStopLossOrder: 修改止盈止损计划失败, param: {}, result: {}", toJson(param), toJson(result));
-            }
+            ModifyOrderRequest req = ModifyOrderRequest.byOid(order.getCoin(), order.getOid());
+            req.setBuy(!"A".equals(order.getSide()));
+            req.setLimitPx(newTriggerPrice);
+            req.setSz(order.getSz());
+            req.setReduceOnly(true);
+            req.setOrderType(TriggerOrderType.sl(newTriggerPrice, true));
+
+            ModifyOrder modifyOrder = client.getExchange().modifyOrder(req);
+            log.info("modifyStopLossOrder: 更新止盈止损计划成功, order: {}, newTriggerPrice: {}", toJson(modifyOrder), newTriggerPrice);
         } catch (Exception e) {
             log.error("modifyStopLossOrder-error: 更新止盈止损计划失败, order: {}, newTriggerPrice: {}, error: {}", toJson(order), newTriggerPrice, e.getMessage());
         }
