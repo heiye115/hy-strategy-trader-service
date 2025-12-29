@@ -57,11 +57,7 @@ import static com.hy.common.utils.num.NumUtil.calculateExchangeMaxLeverage;
 public class DoubleMovingAverageStrategyV2Service {
 
 
-    private final HyperliquidClient client = HyperliquidClient.builder()
-            //.testNetUrl()
-            .addPrivateKey("")
-            //.addApiWallet("", "")
-            .build();
+    private final HyperliquidClient client;
 
     /**
      * 邮件通知服务
@@ -238,8 +234,11 @@ public class DoubleMovingAverageStrategyV2Service {
     @Value("${spring.mail.username}")
     private String emailRecipient;
 
-
-    public DoubleMovingAverageStrategyV2Service(MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler) {
+    public DoubleMovingAverageStrategyV2Service(MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler, @Value("${hyperliquid.primary-wallet-address}") String primaryWalletAddress, @Value("${hyperliquid.api-wallet-private-key}") String apiWalletPrivateKey) {
+        this.client = HyperliquidClient.builder()
+                .testNetUrl()
+                .addApiWallet(primaryWalletAddress, apiWalletPrivateKey)
+                .build();
         this.mailService = mailService;
         this.taskExecutor = taskExecutor;
         this.taskScheduler = taskScheduler;
@@ -499,65 +498,6 @@ public class DoubleMovingAverageStrategyV2Service {
 
     /**
      * 检测是否形成突破趋势排列
-     **/
-    private boolean isBreakoutTrend2(DoubleMovingAverageData data, BigDecimal latestPrice) {
-        //多头突破
-        if (gt(latestPrice, data.getMa144()) &&
-                gt(latestPrice, data.getEma144()) &&
-
-                gt(data.getMa144(), data.getMa55()) &&
-                gt(data.getMa144(), data.getEma55()) &&
-                gt(data.getMa144(), data.getMa21()) &&
-                gt(data.getMa144(), data.getEma21()) &&
-
-                gt(data.getEma144(), data.getMa55()) &&
-                gt(data.getEma144(), data.getEma55()) &&
-                gt(data.getEma144(), data.getMa21()) &&
-                gt(data.getEma144(), data.getEma21()) &&
-
-                lt(data.getMa55(), data.getMa144()) &&
-                lt(data.getMa55(), data.getEma144()) &&
-                lt(data.getEma55(), data.getMa144()) &&
-                lt(data.getEma55(), data.getEma144()) &&
-
-                lt(data.getMa21(), data.getMa55()) &&
-                lt(data.getMa21(), data.getEma55()) &&
-                lt(data.getEma21(), data.getMa55()) &&
-                lt(data.getEma21(), data.getEma55())
-
-
-        ) {
-            return true;
-        }
-        //空头突破
-        return lt(latestPrice, data.getMa144()) &&
-                lt(latestPrice, data.getEma144()) &&
-
-                lt(data.getMa144(), data.getMa55()) &&
-                lt(data.getMa144(), data.getEma55()) &&
-                lt(data.getMa144(), data.getMa21()) &&
-                lt(data.getMa144(), data.getEma21()) &&
-
-                lt(data.getEma144(), data.getMa55()) &&
-                lt(data.getEma144(), data.getEma55()) &&
-                lt(data.getEma144(), data.getMa21()) &&
-                lt(data.getEma144(), data.getEma21()) &&
-
-
-                gt(data.getMa55(), data.getMa144()) &&
-                gt(data.getMa55(), data.getEma144()) &&
-                gt(data.getEma55(), data.getMa144()) &&
-                gt(data.getEma55(), data.getEma144()) &&
-
-                gt(data.getMa21(), data.getMa55()) &&
-                gt(data.getMa21(), data.getEma55()) &&
-                gt(data.getEma21(), data.getMa55()) &&
-                gt(data.getEma21(), data.getEma55());
-    }
-
-
-    /**
-     * 检测是否形成突破趋势排列
      */
     private boolean isBreakoutTrend(DoubleMovingAverageData data, BigDecimal latestPrice) {
         return isLongBreakout(data, latestPrice) || isShortBreakout(data, latestPrice);
@@ -693,7 +633,7 @@ public class DoubleMovingAverageStrategyV2Service {
      */
     public DoubleMovingAveragePlaceOrder createPlaceOrder(DoubleMovingAverageStrategyConfig conf, String side, BigDecimal latestPrice, BigDecimal stopLossPrice) {
         DoubleMovingAveragePlaceOrder order = new DoubleMovingAveragePlaceOrder();
-        order.setClientOid(IdUtil.getSnowflakeNextIdStr());
+        order.setClientOid(Cloid.fromLong(IdUtil.getSnowflakeNextId()).getRaw());
         order.setSymbol(conf.getSymbol());
         order.setSide(side);
         order.setStopLossPrice(stopLossPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
@@ -1303,7 +1243,7 @@ public class DoubleMovingAverageStrategyV2Service {
 
             // 实际成交数量
             if (position.getSzi() != null) {
-                actualSizeText = position.getSzi();
+                actualSizeText = new BigDecimal(position.getSzi()).abs().toPlainString();
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>实际成交量</td>" +
                                 "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s</td></tr>",
