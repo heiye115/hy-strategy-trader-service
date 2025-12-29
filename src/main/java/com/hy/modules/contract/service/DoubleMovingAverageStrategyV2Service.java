@@ -3,24 +3,22 @@ package com.hy.modules.contract.service;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.bitget.custom.entity.*;
-import com.bitget.openapi.dto.request.ws.SubscribeReq;
 import com.bitget.openapi.dto.response.ResponseResult;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.hy.common.enums.BitgetEnum;
 import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.MailService;
-import com.hy.common.utils.json.JsonUtil;
 import com.hy.modules.contract.entity.DoubleMovingAverageData;
 import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
 import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
 import io.github.hyperliquid.sdk.HyperliquidClient;
-import io.github.hyperliquid.sdk.model.info.Candle;
-import io.github.hyperliquid.sdk.model.info.CandleInterval;
-import io.github.hyperliquid.sdk.model.info.ClearinghouseState;
-import io.github.hyperliquid.sdk.model.info.UpdateLeverage;
+import io.github.hyperliquid.sdk.apis.Info;
+import io.github.hyperliquid.sdk.model.info.*;
 import io.github.hyperliquid.sdk.model.order.BulkOrder;
 import io.github.hyperliquid.sdk.model.order.Cloid;
 import io.github.hyperliquid.sdk.model.order.OrderRequest;
 import io.github.hyperliquid.sdk.model.order.OrderWithTpSlBuilder;
+import io.github.hyperliquid.sdk.model.subscription.CandleSubscription;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,12 +33,14 @@ import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.DecimalNumFactory;
 import org.ta4j.core.num.Num;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -64,7 +64,9 @@ public class DoubleMovingAverageStrategyV2Service {
 
 
     private final HyperliquidClient client = HyperliquidClient.builder()
-            .addApiWallet("", "")
+            .testNetUrl()
+            .addPrivateKey("")
+            //.addApiWallet("", "")
             .build();
 
     /**
@@ -206,7 +208,7 @@ public class DoubleMovingAverageStrategyV2Service {
      * - volumePlace: 数量小数位
      * - pricePlace: 价格小数位
      * - maxLeverage: 最大杠杆倍数
-     * - openAmount: 单次开仓金额（USDT）
+     * - openAmount: 单次开仓金额（USDC）
      * - deviationFromMA: 动态止盈偏离度阈值（%）
      * 偏离度阈值优化原则：
      * - BTC/ETH H1周期：10-12%（主流币，趋势稳健）
@@ -214,8 +216,8 @@ public class DoubleMovingAverageStrategyV2Service {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, "BTC", CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10.0)));
-            put(SymbolEnum.ETHUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, "ETH", CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
+            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10.0)));
+            put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
             //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), BitgetEnum.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), BitgetEnum.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
             //put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), BitgetEnum.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
@@ -771,9 +773,9 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 获取所有仓位
      **/
-    public Map<String, ClearinghouseState.Position> getAllPosition() throws IOException {
+    public Map<String, ClearinghouseState.Position> getAllPosition() {
         Map<String, ClearinghouseState.Position> positions = new HashMap<>();
-        ClearinghouseState clearinghouseState = client.getInfo().userState(client.getSingleAddress());
+        ClearinghouseState clearinghouseState = getAccountInfo();
         List<ClearinghouseState.AssetPositions> assetPositions = clearinghouseState.getAssetPositions();
         for (ClearinghouseState.AssetPositions assetPosition : assetPositions) {
             positions.put(assetPosition.getPosition().getCoin(), assetPosition.getPosition());
@@ -785,19 +787,13 @@ public class DoubleMovingAverageStrategyV2Service {
      * 验证账户余额
      */
     private boolean validateAccountBalance(DoubleMovingAveragePlaceOrder placeOrder) {
-        Map<String, BitgetAccountsResp> accountMap = getAccountInfo();
-        BitgetAccountsResp accountsResp = accountMap.get(DEFAULT_CURRENCY_USDT);
-        if (accountsResp == null) {
-            log.warn("validateAccountBalance: 未获取到USDT账户信息，无法执行下单! 订单: {}", toJson(placeOrder));
-            return false;
-        }
+        ClearinghouseState state = getAccountInfo();
         DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(placeOrder.getSymbol());
-        BigDecimal available = new BigDecimal(accountsResp.getAvailable());
-        BigDecimal isolatedMaxAvailable = new BigDecimal(accountsResp.getIsolatedMaxAvailable());
+        BigDecimal available = new BigDecimal(state.getWithdrawable());
         BigDecimal maxInvestAmount = config.getOpenAmount();
         placeOrder.setAccountBalance(available);
-        if (lt(available, maxInvestAmount) || lt(isolatedMaxAvailable, maxInvestAmount)) {
-            log.warn("validateAccountBalance: USDT账户可用余额不足，无法执行下单操作! 订单: {} 可用余额: {}, 逐仓最大可用来开仓余额: {}", toJson(placeOrder), available, isolatedMaxAvailable);
+        if (lt(available, maxInvestAmount)) {
+            log.warn("validateAccountBalance: USDC账户可用余额不足，无法执行下单操作! 订单: {} 可用余额: {}", toJson(placeOrder), available);
             return false;
         }
         return true;
@@ -852,12 +848,12 @@ public class DoubleMovingAverageStrategyV2Service {
             placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide(), BG_PLAN_TYPE_PROFIT_PLAN);
 
             // 获取订单详情（包含实际成交数据）
-            ResponseResult<BitgetOrderDetailResp> orderDetailResp = bitgetSession.getOrderDetail(orderParam.getSymbol(), orderResult.getOrderId());
+            ResponseResult<BitgetOrderDetailResp> orderDetailResp = null;//bitgetSession.getOrderDetail(orderParam.getSymbol(), orderResult.getOrderId());
 
             // 发送HTML格式的邮件通知（传入实际成交数据）
             sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, orderDetailResp));
         } catch (Exception e) {
-            log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", toJson(orderParam), toJson(orderResult), e);
+            log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", toJson(orderParam), toJson(bulkOrder), e);
         }
     }
 
@@ -882,7 +878,7 @@ public class DoubleMovingAverageStrategyV2Service {
         }
         param.setHoldSide(holdSide);
         try {
-            ResponseResult<BitgetPlaceTpslOrderResp> rs = bitgetSession.placeTpslOrder(param);
+            ResponseResult<BitgetPlaceTpslOrderResp> rs = null;//bitgetSession.placeTpslOrder(param);
             if (rs == null) {
                 log.error("placeTakeProfitStopLossOrder: 设置止盈止损委托计划失败, param: {}", toJson(param));
                 return;
@@ -962,19 +958,13 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 获取账户信息
      **/
-    public Map<String, BitgetAccountsResp> getAccountInfo() {
+    public ClearinghouseState getAccountInfo() {
         try {
-            ResponseResult<List<BitgetAccountsResp>> accountsResp = bitgetSession.getAccounts();
-            if (accountsResp != null && BG_RESPONSE_CODE_SUCCESS.equals(accountsResp.getCode())) {
-                List<BitgetAccountsResp> accounts = accountsResp.getData();
-                if (accounts != null && !accounts.isEmpty()) {
-                    return accounts.stream().collect(Collectors.toMap(BitgetAccountsResp::getMarginCoin, v -> v, (k1, k2) -> k1));
-                }
-            }
+            return client.getInfo().userState(client.getSingleAddress());
         } catch (Exception e) {
             log.error("getAccountInfo-error", e);
+            throw e;
         }
-        return new ConcurrentHashMap<>();
     }
 
 
@@ -983,26 +973,21 @@ public class DoubleMovingAverageStrategyV2Service {
      * 建立WebSocket连接，实时接收市场价格变动并更新缓存
      */
     public void subscribeMarketDataViaWebSocket() {
-        List<SubscribeReq> list = new ArrayList<>();
+        Info info = client.getInfo();
         for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
-            list.add(SubscribeReq.builder().instType(BG_PRODUCT_TYPE_USDT_FUTURES).channel(BG_CHANNEL_TICKER).instId(config.getSymbol()).build());
-        }
-        if (list.isEmpty()) return;
-        taskExecutor.execute(() -> {
-            try {
-                bitgetCustomService.subscribeWsClientContractPublic(list, data -> {
-                    if (data != null) {
-                        BitgetWSMarketResp marketResp = JsonUtil.toBean(data, BitgetWSMarketResp.class);
-                        if (marketResp.getData() != null && !marketResp.getData().isEmpty()) {
-                            BitgetWSMarketResp.MarketInfo info = marketResp.getData().getFirst();
-                            LATEST_PRICE_CACHE.put(info.getSymbol(), new BigDecimal(info.getLastPr()));
+            info.subscribe(CandleSubscription.of(config.getSymbol(), "1m"),
+                    msg -> {
+                        JsonNode data = msg.get("data");
+                        if (data != null) {
+                            //String open = data.path("o").asText();
+                            //String high = data.path("h").asText();
+                            //String low = data.path("l").asText();
+                            String close = data.path("c").asText();
+                            //String volume = data.path("v").asText();
+                            LATEST_PRICE_CACHE.put(config.getSymbol(), new BigDecimal(close));
                         }
-                    }
-                });
-            } catch (Exception e) {
-                log.error("subscribeMarketDataViaWebSocket-error:", e);
-            }
-        });
+                    });
+        }
     }
 
     /**
@@ -1011,7 +996,7 @@ public class DoubleMovingAverageStrategyV2Service {
     public void managePositions() {
         try {
             // 获取当前所有持仓
-            Map<String, BitgetAllPositionResp> positionMap = getAllPosition();
+            Map<String, ClearinghouseState.Position> positionMap = getAllPosition();
 
             // 根据仓位更新是否允许开单
             CONFIG_MAP.keySet().forEach(symbol -> {
@@ -1023,7 +1008,7 @@ public class DoubleMovingAverageStrategyV2Service {
             if (positionMap.isEmpty()) return;
 
             // 获取当前计划止盈止损委托
-            Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap = getOrdersPlanPending();
+            Map<String, List<FrontendOpenOrder>> entrustedOrdersMap = getOrdersPlanPending();
             //log.info("managePositions: 当前持仓: {}, 当前计划止盈止损委托: {}", JsonUtil.toJson(positionMap), JsonUtil.toJson(entrustedOrdersMap));
             // 更新止盈止损计划
             updateTakeProfitStopLossPlans(positionMap, entrustedOrdersMap);
@@ -1036,7 +1021,7 @@ public class DoubleMovingAverageStrategyV2Service {
      * 更新止盈止损计划
      * 根据持仓信息和当前价格动态调整止盈止损订单
      **/
-    public void updateTakeProfitStopLossPlans(Map<String, BitgetAllPositionResp> positionMap, Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> entrustedOrdersMap) {
+    public void updateTakeProfitStopLossPlans(Map<String, ClearinghouseState.Position> positionMap, Map<String, List<FrontendOpenOrder>> entrustedOrdersMap) {
         if (positionMap == null || positionMap.isEmpty()) return;
         if (entrustedOrdersMap == null || entrustedOrdersMap.isEmpty()) return;
 
@@ -1054,7 +1039,7 @@ public class DoubleMovingAverageStrategyV2Service {
                 // 如果动态止盈价小于等于0，则不更新
                 if (lte(stopProfitPrice, BigDecimal.ZERO)) return;
                 // 获取当前委托订单
-                List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
+                List<FrontendOpenOrder> entrustedOrders = entrustedOrdersMap.get(symbol);
                 if (entrustedOrders == null || entrustedOrders.isEmpty()) return;
 
                 // 更新止损订单
@@ -1077,19 +1062,19 @@ public class DoubleMovingAverageStrategyV2Service {
      * @return 动态止盈价，如果不满足条件则返回ZERO
      */
     private BigDecimal calculateDynamicStopProfitPrice(BigDecimal latestPrice, DoubleMovingAverageData data,
-                                                       DoubleMovingAverageStrategyConfig config, BitgetAllPositionResp position) {
+                                                       DoubleMovingAverageStrategyConfig config, ClearinghouseState.Position position) {
         BigDecimal maxValue = data.getMaxValue();
         BigDecimal minValue = data.getMinValue();
 
         // 获取盈亏平衡价（包含开仓价格 + 手续费）
-        BigDecimal breakEvenPrice = new BigDecimal(position.getBreakEvenPrice()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
+        BigDecimal breakEvenPrice = new BigDecimal(position.getEntryPx()).setScale(config.getPricePlace(), RoundingMode.HALF_UP);
 
         // 多头持仓: 价格上涨且盈利达到阈值时计算动态止盈
-        if (BG_HOLD_SIDE_LONG.equals(position.getHoldSide())) {
+        if (Double.parseDouble(position.getSzi()) > 0) {
             return calculateStopProfitForLong(latestPrice, minValue, breakEvenPrice, config);
         }
         // 空头持仓: 价格下跌且盈利达到阈值时计算动态止盈
-        else if (BG_HOLD_SIDE_SHORT.equals(position.getHoldSide())) {
+        else if (Double.parseDouble(position.getSzi()) < 0) {
             return calculateStopProfitForShort(latestPrice, maxValue, breakEvenPrice, config);
         }
 
@@ -1225,11 +1210,11 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 更新止损订单
      */
-    private void updateStopLossOrders(List<BitgetOrdersPlanPendingResp.EntrustedOrder> entrustedOrders, DoubleMovingAverageData data, BigDecimal stopProfitPrice) {
-        for (BitgetOrdersPlanPendingResp.EntrustedOrder order : entrustedOrders) {
+    private void updateStopLossOrders(List<FrontendOpenOrder> entrustedOrders, DoubleMovingAverageData data, BigDecimal stopProfitPrice) {
+        for (FrontendOpenOrder order : entrustedOrders) {
             try {
                 // 仅处理止损计划订单
-                if (!BG_PLAN_TYPE_LOSS_PLAN.equals(order.getPlanType())) continue;
+                if (!"Stop Market".equals(order.getOrderType())) continue;
 
                 BigDecimal triggerPrice = new BigDecimal(Optional.ofNullable(order.getTriggerPrice()).orElse("0"));
                 String side = order.getSide();
@@ -1295,11 +1280,10 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 获取当前计划委托
      **/
-    public Map<String, List<BitgetOrdersPlanPendingResp.EntrustedOrder>> getOrdersPlanPending() throws IOException {
-        ResponseResult<BitgetOrdersPlanPendingResp> planResp = bitgetSession.getOrdersPlanPending(BG_PLAN_TYPE_PROFIT_LOSS, BG_PRODUCT_TYPE_USDT_FUTURES);
-        BitgetOrdersPlanPendingResp data = planResp.getData();
-        if (data == null || data.getEntrustedList() == null) return Map.of();
-        return data.getEntrustedList().stream().collect(Collectors.groupingBy(BitgetOrdersPlanPendingResp.EntrustedOrder::getSymbol));
+    public Map<String, List<FrontendOpenOrder>> getOrdersPlanPending() {
+        List<FrontendOpenOrder> frontendOpenOrders = client.getInfo().frontendOpenOrders(client.getSingleAddress());
+        if (frontendOpenOrders == null || frontendOpenOrders.isEmpty()) return Map.of();
+        return frontendOpenOrders.stream().collect(Collectors.groupingBy(FrontendOpenOrder::getCoin));
     }
 
     /**
@@ -1360,7 +1344,7 @@ public class DoubleMovingAverageStrategyV2Service {
                 actualPriceText = orderDetail.getPriceAvg();
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>实际成交价</td>" +
-                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDT</td></tr>",
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDC</td></tr>",
                         actualPriceText
                 );
             }
@@ -1375,12 +1359,12 @@ public class DoubleMovingAverageStrategyV2Service {
                 );
             }
 
-            // 成交金额（USDT总额）
+            // 成交金额（USDC总额）
             if (orderDetail.getQuoteVolume() != null && !"0".equals(orderDetail.getQuoteVolume())) {
                 BigDecimal quoteVolume = new BigDecimal(orderDetail.getQuoteVolume());
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>成交金额</td>" +
-                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #8b5cf6;'>%s USDT</td></tr>",
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #8b5cf6;'>%s USDC</td></tr>",
                         quoteVolume.setScale(2, RoundingMode.HALF_UP)
                 );
             }
@@ -1391,7 +1375,7 @@ public class DoubleMovingAverageStrategyV2Service {
                 BigDecimal feeAmount = new BigDecimal(feeText).abs();
                 actualDataRows += String.format(
                         "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>手续费</td>" +
-                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%s USDT</td></tr>",
+                                "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #f59e0b;'>%s USDC</td></tr>",
                         feeAmount.setScale(4, RoundingMode.HALF_UP)
                 );
             }
@@ -1480,9 +1464,9 @@ public class DoubleMovingAverageStrategyV2Service {
                 return ""; // 跳过盈亏比计算
             }
 
-            // 计算实际USDT金额（风险/收益 × 成交数量）
-            BigDecimal riskAmountUSDT = riskAmount.multiply(actualSize);
-            BigDecimal rewardAmountUSDT = rewardAmount.multiply(actualSize);
+            // 计算实际USDC金额（风险/收益 × 成交数量）
+            BigDecimal riskAmountUSDC = riskAmount.multiply(actualSize);
+            BigDecimal rewardAmountUSDC = rewardAmount.multiply(actualSize);
             BigDecimal riskRewardRatio = rewardAmount.divide(riskAmount, 2, RoundingMode.HALF_UP);
 
             String priceLabel = hasRealData && orderDetail.getPriceAvg() != null && !"0".equals(orderDetail.getPriceAvg())
@@ -1490,17 +1474,17 @@ public class DoubleMovingAverageStrategyV2Service {
 
             riskRewardHtml = String.format(
                     "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>%s</td>" +
-                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDT</td></tr>" +
+                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #3b82f6;'>%s USDC</td></tr>" +
                             "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>潜在风险</td>" +
-                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #ef4444; font-weight: 600;'>-%s USDT</td></tr>" +
+                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #ef4444; font-weight: 600;'>-%s USDC</td></tr>" +
                             "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>潜在收益</td>" +
-                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #10b981; font-weight: 600;'>+%s USDT</td></tr>" +
+                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #10b981; font-weight: 600;'>+%s USDC</td></tr>" +
                             "<tr><td style='padding: 12px; color: #6b7280;'>盈亏比</td>" +
                             "<td style='padding: 12px; text-align: right; color: #3b82f6; font-weight: 700; font-size: 16px;'>1:%s</td></tr>",
                     priceLabel,
                     currentPrice.setScale(2, RoundingMode.HALF_UP),
-                    riskAmountUSDT.setScale(2, RoundingMode.HALF_UP),
-                    rewardAmountUSDT.setScale(2, RoundingMode.HALF_UP),
+                    riskAmountUSDC.setScale(2, RoundingMode.HALF_UP),
+                    rewardAmountUSDC.setScale(2, RoundingMode.HALF_UP),
                     riskRewardRatio
             );
         } catch (Exception e) {
@@ -1512,7 +1496,7 @@ public class DoubleMovingAverageStrategyV2Service {
         if (order.getAccountBalance() != null) {
             accountBalanceRow = String.format(
                     "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>账户余额</td>" +
-                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s USDT</td></tr>",
+                            "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s USDC</td></tr>",
                     order.getAccountBalance()
             );
         }
@@ -1567,8 +1551,8 @@ public class DoubleMovingAverageStrategyV2Service {
                         "        <div style='padding: 0 30px 30px 30px;'>" +
                         "            <h2 style='margin: 0 0 20px 0; color: #1f2937; font-size: 18px; font-weight: 600; border-left: 4px solid #10b981; padding-left: 12px;'>🎯 风控设置</h2>" +
                         "            <table style='width: 100%%; border-collapse: collapse;'>" +
-                        "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>止损价</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #ef4444;'>%s USDT</td></tr>" +
-                        "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>止盈价</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #10b981;'>%s USDT</td></tr>" +
+                        "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>止损价</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #ef4444;'>%s USDC</td></tr>" +
+                        "                <tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>止盈价</td><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #10b981;'>%s USDC</td></tr>" +
                         "                <tr><td style='padding: 12px; color: #6b7280;'>止盈数量</td><td style='padding: 12px; text-align: right; font-weight: 600;'>%s <span style='color: #6b7280; font-size: 12px;'>(50%%仓位)</span></td></tr>" +
                         "            </table>" +
                         "        </div>" +

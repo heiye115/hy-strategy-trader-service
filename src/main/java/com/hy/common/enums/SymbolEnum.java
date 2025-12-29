@@ -21,7 +21,10 @@ public enum SymbolEnum {
     HYPEUSDT("HYPEUSDT"),
     ZECUSDT("ZECUSDT"),
     DOGEUSDT("DOGEUSDT"),
-    BNBUSDT("BNBUSDT");
+    BNBUSDT("BNBUSDT"),
+
+    BTCUSDC("BTC"),
+    ETHUSDC("ETH");
 
     private final String code;
 
