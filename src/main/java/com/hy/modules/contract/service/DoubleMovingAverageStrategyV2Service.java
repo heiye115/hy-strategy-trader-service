@@ -481,95 +481,6 @@ public class DoubleMovingAverageStrategyV2Service {
         return Duration.ofHours(4);
     }
 
-    /**
-     * 检测是否形成突破趋势排列
-     */
-    private boolean isBreakoutTrend(DoubleMovingAverageData data, BigDecimal latestPrice) {
-        return isLongBreakout(data, latestPrice) || isShortBreakout(data, latestPrice);
-    }
-
-    /**
-     * 多头突破检测
-     * 突破条件：价格突破MA144/EMA144，且形成严格的多头排列
-     */
-    private boolean isLongBreakout(DoubleMovingAverageData data, BigDecimal latestPrice) {
-        // 1. 价格突破长期均线
-        if (!gt(latestPrice, data.getMa144()) || !gt(latestPrice, data.getEma144())) {
-            return false;
-        }
-
-        // 2. MA144/EMA144 在最顶部（压制 MA55/EMA55/MA21/EMA21）
-        boolean ma144OnTop = gt(data.getMa144(), data.getMa55())
-                && gt(data.getMa144(), data.getEma55())
-                && gt(data.getMa144(), data.getMa21())
-                && gt(data.getMa144(), data.getEma21());
-
-        boolean ema144OnTop = gt(data.getEma144(), data.getMa55())
-                && gt(data.getEma144(), data.getEma55())
-                && gt(data.getEma144(), data.getMa21())
-                && gt(data.getEma144(), data.getEma21());
-
-        // 3. MA55/EMA55 在中间（在 MA144/EMA144 之下，在 MA21/EMA21 之上）
-        boolean ma55InMiddle = lt(data.getMa55(), data.getMa144())
-                && lt(data.getMa55(), data.getEma144())
-                && gt(data.getMa55(), data.getMa21())
-                && gt(data.getMa55(), data.getEma21());
-
-        boolean ema55InMiddle = lt(data.getEma55(), data.getMa144())
-                && lt(data.getEma55(), data.getEma144())
-                && gt(data.getEma55(), data.getMa21())
-                && gt(data.getEma55(), data.getEma21());
-
-        // 4. MA21/EMA21 在最底部（被 MA55/EMA55 压制）
-        boolean shortTermAtBottom = lt(data.getMa21(), data.getMa55())
-                && lt(data.getMa21(), data.getEma55())
-                && lt(data.getEma21(), data.getMa55())
-                && lt(data.getEma21(), data.getEma55());
-
-        return ma144OnTop && ema144OnTop && ma55InMiddle && ema55InMiddle && shortTermAtBottom;
-    }
-
-    /**
-     * 空头突破检测
-     * 突破条件：价格跌破MA144/EMA144，且形成严格的空头排列
-     */
-    private boolean isShortBreakout(DoubleMovingAverageData data, BigDecimal latestPrice) {
-        // 1. 价格跌破长期均线
-        if (!lt(latestPrice, data.getMa144()) || !lt(latestPrice, data.getEma144())) {
-            return false;
-        }
-
-        // 2. MA144/EMA144 在最底部（被 MA55/EMA55/MA21/EMA21 压制）
-        boolean ma144AtBottom = lt(data.getMa144(), data.getMa55())
-                && lt(data.getMa144(), data.getEma55())
-                && lt(data.getMa144(), data.getMa21())
-                && lt(data.getMa144(), data.getEma21());
-
-        boolean ema144AtBottom = lt(data.getEma144(), data.getMa55())
-                && lt(data.getEma144(), data.getEma55())
-                && lt(data.getEma144(), data.getMa21())
-                && lt(data.getEma144(), data.getEma21());
-
-        // 3. MA55/EMA55 在中间（在 MA144/EMA144 之上，在 MA21/EMA21 之下）
-        boolean ma55InMiddle = gt(data.getMa55(), data.getMa144())
-                && gt(data.getMa55(), data.getEma144())
-                && lt(data.getMa55(), data.getMa21())
-                && lt(data.getMa55(), data.getEma21());
-
-        boolean ema55InMiddle = gt(data.getEma55(), data.getMa144())
-                && gt(data.getEma55(), data.getEma144())
-                && lt(data.getEma55(), data.getMa21())
-                && lt(data.getEma55(), data.getEma21());
-
-        // 4. MA21/EMA21 在最顶部（压制 MA55/EMA55）
-        boolean shortTermOnTop = gt(data.getMa21(), data.getMa55())
-                && gt(data.getMa21(), data.getEma55())
-                && gt(data.getEma21(), data.getMa55())
-                && gt(data.getEma21(), data.getEma55());
-
-        return ma144AtBottom && ema144AtBottom && ma55InMiddle && ema55InMiddle && shortTermOnTop;
-    }
-
 
     /**
      * 检测是否形成严格的多重均线趋势排列
@@ -740,8 +651,18 @@ public class DoubleMovingAverageStrategyV2Service {
             List<JsonNode> statuses = bulkOrder.getResponse().getData().getStatuses();
             JsonNode first = statuses.getFirst();
             String oid = first.get("filled").get("oid").asText();
+            orderParam.setAccountBalance(new BigDecimal(clearinghouseState.getWithdrawable()));
+            ClearinghouseState.Position position = null;
+            List<ClearinghouseState.AssetPositions> assetPositions = clearinghouseState.getAssetPositions();
+            for (ClearinghouseState.AssetPositions assetPosition : assetPositions) {
+                if (orderParam.getSymbol().equals(assetPosition.getPosition().getCoin())) {
+                    position = assetPosition.getPosition();
+                    break;
+                }
+            }
+            if (position == null) return;
             // 发送HTML格式的邮件通知（传入实际成交数据）
-            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, clearinghouseState, oid));
+            sendHtmlEmail(DateUtil.now() + " 双均线策略下单成功 ✅", buildOrderEmailContent(orderParam, position, oid));
         } catch (Exception e) {
             log.error("handleSuccessfulOrder-error: orderParam={}, orderResult={}", toJson(orderParam), toJson(bulkOrder), e);
         }
@@ -1187,19 +1108,11 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 构建HTML格式的订单邮件内容（基于实际成交数据）
      *
-     * @param order              订单参数信息
-     * @param clearinghouseState 清算状态
+     * @param order    订单参数信息
+     * @param position 仓位
      * @return HTML格式的邮件内容
      */
-    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order, ClearinghouseState clearinghouseState, String oid) {
-        ClearinghouseState.Position position = null;
-        List<ClearinghouseState.AssetPositions> assetPositions = clearinghouseState.getAssetPositions();
-        for (ClearinghouseState.AssetPositions assetPosition : assetPositions) {
-            if (order.getSymbol().equals(assetPosition.getPosition().getCoin())) {
-                position = assetPosition.getPosition();
-                break;
-            }
-        }
+    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order, ClearinghouseState.Position position, String oid) {
         // 提取实际成交数据
         boolean hasRealData = (position != null);
 
@@ -1343,11 +1256,11 @@ public class DoubleMovingAverageStrategyV2Service {
 
         // 账户余额（可选）
         String accountBalanceRow = "";
-        if (clearinghouseState.getWithdrawable() != null) {
+        if (order.getAccountBalance() != null) {
             accountBalanceRow = String.format(
                     "<tr><td style='padding: 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;'>账户余额</td>" +
                             "<td style='padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;'>%s USDC</td></tr>",
-                    clearinghouseState.getWithdrawable()
+                    order.getAccountBalance().toPlainString()
             );
         }
 
