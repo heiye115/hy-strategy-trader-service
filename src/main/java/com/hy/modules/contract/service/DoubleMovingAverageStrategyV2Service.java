@@ -265,9 +265,9 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 为指定币种设置杠杆倍数
      */
-    private void setLeverageForSymbol(String symbol, Integer leverage) {
+    private void setLeverageForSymbol(String symbol, boolean crossed, Integer leverage) {
         try {
-            UpdateLeverage updateLeverage = client.getExchange().updateLeverage(symbol, false, leverage);
+            UpdateLeverage updateLeverage = client.getExchange().updateLeverage(symbol, crossed, leverage);
             log.info("setLeverageForSymbol-设置杠杆成功: symbol={}, leverage={}, result={}", symbol, leverage, toJson(updateLeverage));
         } catch (Exception e) {
             log.error("setLeverageForSymbol-设置杠杆失败: symbol={}, leverage={}", symbol, leverage, e);
@@ -340,12 +340,7 @@ public class DoubleMovingAverageStrategyV2Service {
                     order = buildTrendFollowingPlaceOrder(conf, data, latestPrice);
                 }
 
-                // 3. 跟踪突破下单
-                //if (order == null && isBreakoutTrend(data, latestPrice)) {
-                //    order = buildBreakoutPlaceOrder(conf, data, latestPrice);
-                //}
-
-                // 4. 订单入队处理
+                // 3. 订单入队处理
                 if (order != null && tryAcquireOpenLock(symbol, conf.getTimeFrame())) {
                     // 获取用于写入的 allowOpen 对象（如果之前不存在，则认为允许开单）
                     AtomicBoolean allowOpenForSet = canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(true));
@@ -437,31 +432,6 @@ public class DoubleMovingAverageStrategyV2Service {
         }
         return null;
     }
-
-    /**
-     * 构建跟踪突破下单
-     **/
-    public DoubleMovingAveragePlaceOrder buildBreakoutPlaceOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
-        BigDecimal maxValue = data.getMaxValue();
-        BigDecimal minValue = data.getMinValue();
-
-        // 多头突破: 价格突破最高位
-        if (gt(latestPrice, maxValue)) {
-            //计算止损价
-            BigDecimal stopLossPrice = minValue.subtract(maxValue.subtract(minValue)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            return createPlaceOrder(conf, HYPE_SIDE_BUY, latestPrice, stopLossPrice);
-        }
-
-        // 空头突破: 价格跌破最低位
-        if (lt(latestPrice, minValue)) {
-            //计算止损价
-            BigDecimal stopLossPrice = maxValue.add(maxValue.subtract(minValue)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            return createPlaceOrder(conf, HYPE_SIDE_SELL, latestPrice, stopLossPrice);
-        }
-
-        return null;
-    }
-
 
     /**
      * 获取开仓锁
@@ -733,7 +703,7 @@ public class DoubleMovingAverageStrategyV2Service {
                         // 校验账户余额
                         if (!validateAccountBalance(orderParam)) continue;
                         //设置杠杆
-                        setLeverageForSymbol(orderParam.getSymbol(), orderParam.getLeverage());
+                        setLeverageForSymbol(orderParam.getSymbol(), HYPE_MARGIN_MODE_CROSSED.equalsIgnoreCase(orderParam.getMarginMode()), orderParam.getLeverage());
                         // 执行下单
                         BulkOrder orderResult = executeOrder(orderParam);
                         log.info("startOrderConsumer: 下单完成，订单信息: {}, 返回结果: {}", toJson(orderParam), toJson(orderResult));
@@ -1241,8 +1211,8 @@ public class DoubleMovingAverageStrategyV2Service {
         String directionBg = isBuy ? "#d1fae5" : "#fee2e2";
 
         // 判断订单类型
-        String orderTypeText = "market".equalsIgnoreCase(order.getOrderType()) ? "市价单" : "限价单";
-        String marginModeText = "isolated".equalsIgnoreCase(order.getMarginMode()) ? "逐仓" : "全仓";
+        String orderTypeText = HYPE_ORDER_TYPE_MARKET.equalsIgnoreCase(order.getOrderType()) ? "市价单" : "限价单";
+        String marginModeText = HYPE_MARGIN_MODE_ISOLATED.equalsIgnoreCase(order.getMarginMode()) ? "逐仓" : "全仓";
 
         // 实际成交数据
         String actualPriceText = "";
