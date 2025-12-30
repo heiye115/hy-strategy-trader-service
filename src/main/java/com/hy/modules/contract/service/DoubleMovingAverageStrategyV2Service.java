@@ -39,6 +39,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.hy.common.constants.HypeConstant.*;
@@ -84,6 +85,11 @@ public class DoubleMovingAverageStrategyV2Service {
      * 存储每个交易对的最新市场价格，用于信号检测和订单构建
      **/
     private final static Map<String, BigDecimal> LATEST_PRICE_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * 最后一次交易时间缓存
+     */
+    private static final Map<String, AtomicLong> LAST_TRADE_TIME_CACHE = new ConcurrentHashMap<>();
 
     /**
      * 订单队列 - 存储待执行的订单参数
@@ -871,24 +877,22 @@ public class DoubleMovingAverageStrategyV2Service {
     public void subscribeMarketDataViaWebSocket() {
         Info info = client.getInfo();
         for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
-            info.subscribe(TradesSubscription.of(config.getSymbol()), msg -> {
+            String symbol = config.getSymbol();
+            info.subscribe(TradesSubscription.of(symbol), msg -> {
                 JsonNode data = msg.get("data");
                 if (data == null || !data.isArray() || data.isEmpty()) {
                     return;
                 }
-                JsonNode latest = null;
-                long maxTid = Long.MIN_VALUE;
+                AtomicLong lastTimeRef = LAST_TRADE_TIME_CACHE.computeIfAbsent(symbol, k -> new AtomicLong(0));
                 for (JsonNode trade : data) {
-                    long tid = trade.get("tid").asLong();
-                    if (tid > maxTid) {
-                        maxTid = tid;
-                        latest = trade;
+                    long tradeTime = trade.get("time").asLong();
+                    // 只处理比当前记录更新的成交
+                    if (tradeTime > lastTimeRef.get()) {
+                        lastTimeRef.set(tradeTime);
+                        BigDecimal lastPrice = new BigDecimal(trade.get("px").asText());
+                        LATEST_PRICE_CACHE.put(symbol, lastPrice);
+                        //System.out.println("最新价格: " + symbol + " " + lastPrice);
                     }
-                }
-                if (latest != null) {
-                    BigDecimal lastPrice = new BigDecimal(latest.get("px").asText());
-                    LATEST_PRICE_CACHE.put(config.getSymbol(), lastPrice);
-                    //System.out.println(config.getSymbol() + " 最新成交价: " + lastPrice + " side=" + side + " time=" + time);
                 }
             });
         }
