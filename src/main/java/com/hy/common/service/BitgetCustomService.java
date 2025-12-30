@@ -13,7 +13,6 @@ import com.bitget.openapi.ws.SubscriptionListener;
 import com.google.common.collect.Maps;
 import com.hy.common.config.BitgetProperties;
 import com.hy.common.enums.BitgetAccountType;
-import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,7 +50,7 @@ public class BitgetCustomService {
     }
 
 
-    @PostConstruct
+    //@PostConstruct
     public void init() {
         for (BitgetProperties.Account account : properties.getAccounts()) {
             ClientParameter parameter = ClientParameter.builder()

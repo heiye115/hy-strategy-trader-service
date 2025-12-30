@@ -20,7 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
-import org.springframework.stereotype.Service;
 import org.ta4j.core.*;
 import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.averages.SMAIndicator;
@@ -50,7 +49,7 @@ import static com.hy.common.utils.num.NumUtil.calculateExchangeMaxLeverage;
  * 该类负责处理双均线策略的相关逻辑，包括计算指标、持仓信息管理等。
  */
 @Slf4j
-@Service
+//@Service
 public class DoubleMovingAverageStrategyService {
 
     /**

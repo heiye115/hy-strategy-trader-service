@@ -12,10 +12,10 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(prefix = "task.doublemovingaverage", name = "enabled", havingValue = "true")
 public class DoubleMovingAverageStrategyTaskV2Service {
 
-    private final DoubleMovingAverageStrategyV2Service doubleMovingAverageStrategyService;
+    private final DoubleMovingAverageStrategyV2Service doubleMovingAverageStrategyV2Service;
 
     public DoubleMovingAverageStrategyTaskV2Service(DoubleMovingAverageStrategyV2Service doubleMovingAverageStrategyService) {
-        this.doubleMovingAverageStrategyService = doubleMovingAverageStrategyService;
+        this.doubleMovingAverageStrategyV2Service = doubleMovingAverageStrategyService;
     }
 
     /**
@@ -25,7 +25,7 @@ public class DoubleMovingAverageStrategyTaskV2Service {
     public void init() {
         //启动时执行一次
         updateDoubleMovingAverageIndicators();
-        doubleMovingAverageStrategyService.init();
+        doubleMovingAverageStrategyV2Service.init();
     }
 
     /**
@@ -35,7 +35,7 @@ public class DoubleMovingAverageStrategyTaskV2Service {
     @Scheduled(cron = "0 */5 * * * ?")
     public void updateDoubleMovingAverageIndicators() {
         try {
-            doubleMovingAverageStrategyService.updateDoubleMovingAverageIndicators();
+            doubleMovingAverageStrategyV2Service.updateDoubleMovingAverageIndicators();
         } catch (Exception e) {
             log.error("updateDoubleMovingAverageIndicators-error", e);
         }
@@ -43,12 +43,12 @@ public class DoubleMovingAverageStrategyTaskV2Service {
 
     /**
      * 刷新市场价格缓存
-     * 每5秒执行一次
+     * 每60秒执行一次
      **/
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 60000)
     public void refreshMarketPriceCache() {
         try {
-            doubleMovingAverageStrategyService.refreshMarketPriceCache();
+            doubleMovingAverageStrategyV2Service.refreshMarketPriceCache();
         } catch (Exception e) {
             log.error("refreshMarketPriceCache-error", e);
         }
@@ -62,7 +62,7 @@ public class DoubleMovingAverageStrategyTaskV2Service {
     @Scheduled(fixedRate = 500)
     public void detectAndEnqueueTradingSignals() {
         try {
-            doubleMovingAverageStrategyService.detectAndEnqueueTradingSignals();
+            doubleMovingAverageStrategyV2Service.detectAndEnqueueTradingSignals();
         } catch (Exception e) {
             log.error("detectAndEnqueueTradingSignals-error", e);
         }
@@ -75,7 +75,7 @@ public class DoubleMovingAverageStrategyTaskV2Service {
     @Scheduled(fixedDelay = 1000)
     public void managePositions() {
         try {
-            doubleMovingAverageStrategyService.managePositions();
+            doubleMovingAverageStrategyV2Service.managePositions();
         } catch (Exception e) {
             log.error("managePositions-error", e);
         }

@@ -20,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,7 +45,7 @@ import static com.hy.common.utils.num.BigDecimalUtils.*;
  * 5. 止盈止损管理
  */
 @Slf4j
-@Service
+//@Service
 public class ShortTermTradingStrategyService {
 
     // ==================== 依赖注入 ====================

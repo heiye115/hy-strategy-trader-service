@@ -21,7 +21,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
-import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -38,7 +37,7 @@ import static com.hy.common.constants.BitgetConstant.*;
 import static com.hy.common.utils.num.BigDecimalUtils.*;
 
 @Slf4j
-@Service
+//@Service
 public class MartingaleStrategyService {
 
     private final BitgetCustomService.BitgetSession bitgetSession;

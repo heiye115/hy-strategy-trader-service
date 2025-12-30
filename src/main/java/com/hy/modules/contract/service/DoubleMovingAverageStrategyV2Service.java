@@ -12,7 +12,7 @@ import io.github.hyperliquid.sdk.HyperliquidClient;
 import io.github.hyperliquid.sdk.apis.Info;
 import io.github.hyperliquid.sdk.model.info.*;
 import io.github.hyperliquid.sdk.model.order.*;
-import io.github.hyperliquid.sdk.model.subscription.CandleSubscription;
+import io.github.hyperliquid.sdk.model.subscription.TradesSubscription;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -104,11 +104,11 @@ public class DoubleMovingAverageStrategyV2Service {
     /**
      * 中间价偏离度
      * 用于跟踪趋势下单时的价格容忍范围
-     * 当前设置：0.1%（优化后）
-     * - 允许价格在中间价±0.1%范围内开仓
+     * 当前设置：0.3%（优化后）
+     * - 允许价格在中间价±0.3%范围内开仓
      * - 增加入场机会同时保持精准度
      **/
-    private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.1");
+    private final static BigDecimal MEDIAN_DEVIATION = new BigDecimal("0.3");
 
     /**
      * 动态止盈分段系数 - 第一段基础系数 (保守阶段)
@@ -206,13 +206,14 @@ public class DoubleMovingAverageStrategyV2Service {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10.0)));
-            //put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
-            //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), CandleInterval.H4.getCode(), 1, 3, 100, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
-            //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), CandleInterval.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
-            //put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), CandleInterval.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
-            //put(SymbolEnum.DOGEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDT.getCode(), CandleInterval.H4.getCode(), 0, 5, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
-            //put(SymbolEnum.BNBUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BNBUSDT.getCode(), CandleInterval.H4.getCode(), 2, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
+            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10)));
+            put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15)));
+            put(SymbolEnum.SOLUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20)));
+
+            put(SymbolEnum.XRPUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.XRPUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 4, 20, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20)));
+            put(SymbolEnum.HYPEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 3, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(25)));
+            put(SymbolEnum.DOGEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 5, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(25)));
+            put(SymbolEnum.ZECUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 3, 2, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(30)));
         }
     };
 
@@ -236,7 +237,6 @@ public class DoubleMovingAverageStrategyV2Service {
 
     public DoubleMovingAverageStrategyV2Service(MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler, @Value("${hyperliquid.primary-wallet-address}") String primaryWalletAddress, @Value("${hyperliquid.api-wallet-private-key}") String apiWalletPrivateKey) {
         this.client = HyperliquidClient.builder()
-                .testNetUrl()
                 .addApiWallet(primaryWalletAddress, apiWalletPrivateKey)
                 .build();
         this.mailService = mailService;
@@ -335,9 +335,9 @@ public class DoubleMovingAverageStrategyV2Service {
                 }
 
                 // 3. 跟踪突破下单
-                if (order == null && isBreakoutTrend(data, latestPrice)) {
-                    order = buildBreakoutPlaceOrder(conf, data, latestPrice);
-                }
+                //if (order == null && isBreakoutTrend(data, latestPrice)) {
+                //    order = buildBreakoutPlaceOrder(conf, data, latestPrice);
+                //}
 
                 // 4. 订单入队处理
                 if (order != null && tryAcquireOpenLock(symbol, conf.getTimeFrame())) {
@@ -404,9 +404,12 @@ public class DoubleMovingAverageStrategyV2Service {
         // 计算中间价区间 (优化: 使用除法代替减法+乘法)
         BigDecimal medianPrice = highPrice.add(lowPrice).divide(BigDecimal.valueOf(2), conf.getPricePlace(), RoundingMode.HALF_UP);
         BigDecimal medianPriceLower = decrease(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
-        // 价格在中间价下方0.1%到中间价之间，符合多头开多条件
+
+        // 价格在中间价下方0.3%到中间价之间，符合多头开多条件
         if (gte(latestPrice, medianPriceLower) && lt(latestPrice, medianPrice)) {
-            return createPlaceOrder(conf, HYPE_SIDE_BUY, latestPrice, lowPrice);
+            //计算止损价
+            BigDecimal stopLossPrice = lowPrice.subtract(highPrice.subtract(lowPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            return createPlaceOrder(conf, HYPE_SIDE_BUY, latestPrice, stopLossPrice);
         }
         return null;
     }
@@ -420,9 +423,11 @@ public class DoubleMovingAverageStrategyV2Service {
         // 计算中间价区间 (优化: 使用除法代替减法+乘法)
         BigDecimal medianPrice = highPrice.add(lowPrice).divide(BigDecimal.valueOf(2), conf.getPricePlace(), RoundingMode.HALF_UP);
         BigDecimal medianPriceUpper = increase(medianPrice, MEDIAN_DEVIATION, conf.getPricePlace());
-        // 价格在中间价到中间价上方0.1%之间，符合空头开空条件
+        // 价格在中间价到中间价上方0.3%之间，符合空头开空条件
         if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceUpper)) {
-            return createPlaceOrder(conf, HYPE_SIDE_SELL, latestPrice, highPrice);
+            //计算止损价
+            BigDecimal stopLossPrice = highPrice.add(highPrice.subtract(lowPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            return createPlaceOrder(conf, HYPE_SIDE_SELL, latestPrice, stopLossPrice);
         }
         return null;
     }
@@ -436,12 +441,16 @@ public class DoubleMovingAverageStrategyV2Service {
 
         // 多头突破: 价格突破最高位
         if (gt(latestPrice, maxValue)) {
-            return createPlaceOrder(conf, HYPE_SIDE_BUY, latestPrice, minValue);
+            //计算止损价
+            BigDecimal stopLossPrice = minValue.subtract(maxValue.subtract(minValue)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            return createPlaceOrder(conf, HYPE_SIDE_BUY, latestPrice, stopLossPrice);
         }
 
         // 空头突破: 价格跌破最低位
         if (lt(latestPrice, minValue)) {
-            return createPlaceOrder(conf, HYPE_SIDE_SELL, latestPrice, maxValue);
+            //计算止损价
+            BigDecimal stopLossPrice = maxValue.add(maxValue.subtract(minValue)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
+            return createPlaceOrder(conf, HYPE_SIDE_SELL, latestPrice, stopLossPrice);
         }
 
         return null;
@@ -862,18 +871,26 @@ public class DoubleMovingAverageStrategyV2Service {
     public void subscribeMarketDataViaWebSocket() {
         Info info = client.getInfo();
         for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
-            info.subscribe(CandleSubscription.of(config.getSymbol(), "1m"),
-                    msg -> {
-                        JsonNode data = msg.get("data");
-                        if (data != null) {
-                            //String open = data.path("o").asText();
-                            //String high = data.path("h").asText();
-                            //String low = data.path("l").asText();
-                            String close = data.path("c").asText();
-                            //String volume = data.path("v").asText();
-                            LATEST_PRICE_CACHE.put(config.getSymbol(), new BigDecimal(close));
-                        }
-                    });
+            info.subscribe(TradesSubscription.of(config.getSymbol()), msg -> {
+                JsonNode data = msg.get("data");
+                if (data == null || !data.isArray() || data.isEmpty()) {
+                    return;
+                }
+                JsonNode latest = null;
+                long maxTid = Long.MIN_VALUE;
+                for (JsonNode trade : data) {
+                    long tid = trade.get("tid").asLong();
+                    if (tid > maxTid) {
+                        maxTid = tid;
+                        latest = trade;
+                    }
+                }
+                if (latest != null) {
+                    BigDecimal lastPrice = new BigDecimal(latest.get("px").asText());
+                    LATEST_PRICE_CACHE.put(config.getSymbol(), lastPrice);
+                    //System.out.println(config.getSymbol() + " 最新成交价: " + lastPrice + " side=" + side + " time=" + time);
+                }
+            });
         }
     }
 
@@ -1226,7 +1243,6 @@ public class DoubleMovingAverageStrategyV2Service {
         // 实际成交数据
         String actualPriceText = "";
         String actualSizeText = "";
-        String feeText = "";
         String actualDataRows = "";
         String orderStateText = "";
 
@@ -1270,36 +1286,9 @@ public class DoubleMovingAverageStrategyV2Service {
             );
 
             // 订单状态
-            String state = "filled";
-            String stateColor = "#6b7280";
-            String stateIcon = "";
-            String stateLabel = "";
-
-            switch (state) {
-                case "filled":
-                    stateLabel = "全部成交";
-                    stateColor = "#10b981";
-                    stateIcon = "✅";
-                    break;
-                case "partially_filled":
-                    stateLabel = "部分成交";
-                    stateColor = "#f59e0b";
-                    stateIcon = "⏳";
-                    break;
-                case "live":
-                    stateLabel = "等待成交";
-                    stateColor = "#3b82f6";
-                    stateIcon = "🔵";
-                    break;
-                case "canceled":
-                    stateLabel = "已撤销";
-                    stateColor = "#ef4444";
-                    stateIcon = "❌";
-                    break;
-                default:
-                    stateLabel = state;
-                    stateIcon = "ℹ️";
-            }
+            String stateColor = "#10b981";
+            String stateIcon = "✅";
+            String stateLabel = "全部成交";
 
             orderStateText = String.format(
                     "<div style='text-align: center; margin-top: 10px;'>" +
