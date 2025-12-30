@@ -31,10 +31,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -643,9 +640,6 @@ public class DoubleMovingAverageStrategyV2Service {
             if (orderParam.getTakeProfitSize() == null || orderParam.getTakeProfitPrice() == null) {
                 return;
             }
-            // 设置仓位止盈
-            placeTakeProfitStopLossOrder(orderParam.getSymbol(), orderParam.getTakeProfitPrice(), orderParam.getTakeProfitSize(), orderParam.getSide());
-
             //获取账户信息
             ClearinghouseState clearinghouseState = getAccountInfo();
             List<JsonNode> statuses = bulkOrder.getResponse().getData().getStatuses();
@@ -668,34 +662,34 @@ public class DoubleMovingAverageStrategyV2Service {
         }
     }
 
-    /**
-     * 设置止盈止损计划委托下单
-     * 创建计划委托订单，当价格触发时自动执行止盈或止损
-     */
-    public void placeTakeProfitStopLossOrder(String symbol, String executePrice, String size, String holdSide) {
-        OrderRequest req = OrderRequest.Close.limit(Tif.GTC, symbol, !SIDE_BUY.equals(holdSide), size, executePrice, Cloid.auto());
-        try {
-            Order order = client.getExchange().order(req);
-            log.info("placeTakeProfitStopLossOrder: 设置止盈止损委托计划成功, param: {}, result: {}", toJson(req), toJson(order));
-        } catch (Exception e) {
-            log.error("placeTakeProfitStopLossOrder-error: 设置止盈止损委托计划失败, param: {}, error: {}", toJson(req), e.getMessage());
-        }
-    }
 
     /**
      * 执行下单操作
      */
     private BulkOrder executeOrder(DoubleMovingAveragePlaceOrder orderParam) {
-        OrderWithTpSlBuilder builder = OrderRequest.entryWithTpSl()
-                .cloid(Cloid.fromStr(orderParam.getClientOid()))
-                .perp(orderParam.getSymbol())
-                .stopLoss(orderParam.getStopLossPrice());
-        if (SIDE_BUY.equals(orderParam.getSide())) {
-            builder.buy(orderParam.getSize());
-        } else if (SIDE_SELL.equals(orderParam.getSide())) {
-            builder.sell(orderParam.getSize());
+        boolean isBuy = SIDE_BUY.equals(orderParam.getSide());
+        String coin = orderParam.getSymbol();
+        String size = orderParam.getSize();
+        String stopLossPrice = orderParam.getStopLossPrice();
+        String takeProfitPrice = orderParam.getTakeProfitPrice();
+        String takeProfitSize = orderParam.getTakeProfitSize();
+        List<OrderRequest> orders = new ArrayList<>();
+        orders.add(OrderRequest.Open.market(coin, isBuy, size, Cloid.fromStr(orderParam.getClientOid())));
+        //止盈
+        OrderBuilder takeProfit = OrderRequest.builder().perp(coin).limitPrice(takeProfitPrice).orderType(TriggerOrderType.tp(takeProfitPrice, false)).reduceOnly();
+        //止损
+        OrderBuilder stopLoss = OrderRequest.builder().perp(coin).limitPrice(stopLossPrice).orderType(TriggerOrderType.sl(stopLossPrice, true)).reduceOnly();
+        if (isBuy) {
+            takeProfit.sell(takeProfitSize);
+            stopLoss.sell(size);
+        } else {
+            takeProfit.buy(takeProfitSize);
+            stopLoss.buy(size);
         }
-        return client.getExchange().bulkOrders(builder.buildNormalTpsl());
+        orders.add(takeProfit.build());
+        orders.add(stopLoss.build());
+        OrderGroup orderGroup = new OrderGroup(orders, GroupingType.NORMAL_TPSL);
+        return client.getExchange().bulkOrders(orderGroup);
     }
 
 
