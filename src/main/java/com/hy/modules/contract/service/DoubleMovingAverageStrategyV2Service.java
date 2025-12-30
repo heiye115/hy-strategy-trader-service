@@ -217,6 +217,7 @@ public class DoubleMovingAverageStrategyV2Service {
             put(SymbolEnum.HYPEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 3, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(25)));
             put(SymbolEnum.DOGEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 5, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(25)));
             put(SymbolEnum.ZECUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 3, 2, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(30)));
+            put(SymbolEnum.AAVEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.AAVEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 2, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20)));
         }
     };
 

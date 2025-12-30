@@ -29,7 +29,8 @@ public enum SymbolEnum {
     XRPUSDC("XRP"),
     HYPEUSDC("HYPE"),
     DOGEUSDC("DOGE"),
-    ZECUSDC("ZEC");
+    ZECUSDC("ZEC"),
+    AAVEUSDC("AAVE");
 
     private final String code;
 
