@@ -623,7 +623,7 @@ public class DoubleMovingAverageStrategyV2Service {
         order.setSide(side);
         order.setStopLossPrice(stopLossPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
         order.setOrderType(HYPE_ORDER_TYPE_MARKET);
-        order.setMarginMode(MARGIN_MODE_ISOLATED);
+        order.setMarginMode(MARGIN_MODE_CROSSED);
         //计算涨跌幅百分比
         BigDecimal changePercent = calculateChangePercent(stopLossPrice, latestPrice).abs();
         //计算最大可开杠杆
