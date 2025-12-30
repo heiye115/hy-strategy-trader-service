@@ -6,22 +6,22 @@ public final class HypeConstant {
     /**
      * 仓位模式  isolated 逐仓
      **/
-    public static final String HYPE_MARGIN_MODE_ISOLATED = "isolated";
+    public static final String MARGIN_MODE_ISOLATED = "isolated";
 
     /**
      * 仓位模式 crossed 全仓
      **/
-    public static final String HYPE_MARGIN_MODE_CROSSED = "crossed";
+    public static final String MARGIN_MODE_CROSSED = "crossed";
 
     /**
      * 下单方向  buy 买
      **/
-    public static final String HYPE_SIDE_BUY = "buy";
+    public static final String SIDE_BUY = "buy";
 
     /**
      * 下单方向 sell 卖
      **/
-    public static final String HYPE_SIDE_SELL = "sell";
+    public static final String SIDE_SELL = "sell";
 
 
     /**

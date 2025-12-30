@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.hy.common.constants.BitgetConstant.BG_PRODUCT_TYPE_USDT_FUTURES;
-import static com.hy.common.constants.HypeConstant.HYPE_SIDE_SELL;
+import static com.hy.common.constants.HypeConstant.SIDE_SELL;
 
 @SpringBootTest
 public class DoubleMovingAverageTests {
@@ -105,7 +105,7 @@ public class DoubleMovingAverageTests {
             }
         };
         DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(SymbolEnum.BTCUSDC.getCode());
-        DoubleMovingAveragePlaceOrder order = doubleMovingAverageStrategyService.createPlaceOrder(config, HYPE_SIDE_SELL, BigDecimal.valueOf(85000), BigDecimal.valueOf(86000));
+        DoubleMovingAveragePlaceOrder order = doubleMovingAverageStrategyService.createPlaceOrder(config, SIDE_SELL, BigDecimal.valueOf(85000), BigDecimal.valueOf(86000));
         System.out.println(JsonUtil.toJson(order));
     }
 

@@ -410,7 +410,7 @@ public class DoubleMovingAverageStrategyV2Service {
         if (gte(latestPrice, medianPriceLower) && lt(latestPrice, medianPrice)) {
             //计算止损价
             BigDecimal stopLossPrice = lowPrice.subtract(highPrice.subtract(lowPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            return createPlaceOrder(conf, HYPE_SIDE_BUY, latestPrice, stopLossPrice);
+            return createPlaceOrder(conf, SIDE_BUY, latestPrice, stopLossPrice);
         }
         return null;
     }
@@ -428,7 +428,7 @@ public class DoubleMovingAverageStrategyV2Service {
         if (gt(latestPrice, medianPrice) && lte(latestPrice, medianPriceUpper)) {
             //计算止损价
             BigDecimal stopLossPrice = highPrice.add(highPrice.subtract(lowPrice)).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            return createPlaceOrder(conf, HYPE_SIDE_SELL, latestPrice, stopLossPrice);
+            return createPlaceOrder(conf, SIDE_SELL, latestPrice, stopLossPrice);
         }
         return null;
     }
@@ -623,7 +623,7 @@ public class DoubleMovingAverageStrategyV2Service {
         order.setSide(side);
         order.setStopLossPrice(stopLossPrice.setScale(conf.getPricePlace(), RoundingMode.HALF_UP).toPlainString());
         order.setOrderType(HYPE_ORDER_TYPE_MARKET);
-        order.setMarginMode(HYPE_MARGIN_MODE_ISOLATED);
+        order.setMarginMode(MARGIN_MODE_ISOLATED);
         //计算涨跌幅百分比
         BigDecimal changePercent = calculateChangePercent(stopLossPrice, latestPrice).abs();
         //计算最大可开杠杆
@@ -639,14 +639,14 @@ public class DoubleMovingAverageStrategyV2Service {
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
         //止盈幅度
         BigDecimal takeProfitPercent = BigDecimal.valueOf(1.0);
-        if (HYPE_SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
+        if (SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 2.0
             takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
                 //如果止盈价小于1%，则设置latestPrice增加1%为止盈价
                 takeProfitPrice = increase(latestPrice, takeProfitPercent, conf.getPricePlace());
             }
-        } else if (HYPE_SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
+        } else if (SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
             // 空头止盈：开仓价 - (止损价 - 开仓价) × 2.0
             takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
@@ -703,7 +703,7 @@ public class DoubleMovingAverageStrategyV2Service {
                         // 校验账户余额
                         if (!validateAccountBalance(orderParam)) continue;
                         //设置杠杆
-                        setLeverageForSymbol(orderParam.getSymbol(), HYPE_MARGIN_MODE_CROSSED.equalsIgnoreCase(orderParam.getMarginMode()), orderParam.getLeverage());
+                        setLeverageForSymbol(orderParam.getSymbol(), MARGIN_MODE_CROSSED.equalsIgnoreCase(orderParam.getMarginMode()), orderParam.getLeverage());
                         // 执行下单
                         BulkOrder orderResult = executeOrder(orderParam);
                         log.info("startOrderConsumer: 下单完成，订单信息: {}, 返回结果: {}", toJson(orderParam), toJson(orderResult));
@@ -752,7 +752,7 @@ public class DoubleMovingAverageStrategyV2Service {
      * 创建计划委托订单，当价格触发时自动执行止盈或止损
      */
     public void placeTakeProfitStopLossOrder(String symbol, String executePrice, String size, String holdSide) {
-        OrderRequest req = OrderRequest.Close.limit(Tif.GTC, symbol, !HYPE_SIDE_BUY.equals(holdSide), size, executePrice, Cloid.auto());
+        OrderRequest req = OrderRequest.Close.limit(Tif.GTC, symbol, !SIDE_BUY.equals(holdSide), size, executePrice, Cloid.auto());
         try {
             Order order = client.getExchange().order(req);
             log.info("placeTakeProfitStopLossOrder: 设置止盈止损委托计划成功, param: {}, result: {}", toJson(req), toJson(order));
@@ -769,9 +769,9 @@ public class DoubleMovingAverageStrategyV2Service {
                 .cloid(Cloid.fromStr(orderParam.getClientOid()))
                 .perp(orderParam.getSymbol())
                 .stopLoss(orderParam.getStopLossPrice());
-        if (HYPE_SIDE_BUY.equals(orderParam.getSide())) {
+        if (SIDE_BUY.equals(orderParam.getSide())) {
             builder.buy(orderParam.getSize());
-        } else if (HYPE_SIDE_SELL.equals(orderParam.getSide())) {
+        } else if (SIDE_SELL.equals(orderParam.getSide())) {
             builder.sell(orderParam.getSize());
         }
         return client.getExchange().bulkOrders(builder.buildNormalTpsl());
@@ -1099,11 +1099,11 @@ public class DoubleMovingAverageStrategyV2Service {
                 String side = order.getSide();
 
                 // 做多止损 (SELL)
-                if (HYPE_SIDE_SELL.equals(side)) {
+                if (SIDE_SELL.equals(side)) {
                     updateLongStopLoss(order, triggerPrice, data.getMinValue(), stopProfitPrice);
                 }
                 // 做空止损 (BUY)
-                else if (HYPE_SIDE_BUY.equals(side)) {
+                else if (SIDE_BUY.equals(side)) {
                     updateShortStopLoss(order, triggerPrice, data.getMaxValue(), stopProfitPrice);
                 }
             } catch (Exception inner) {
@@ -1212,7 +1212,7 @@ public class DoubleMovingAverageStrategyV2Service {
 
         // 判断订单类型
         String orderTypeText = HYPE_ORDER_TYPE_MARKET.equalsIgnoreCase(order.getOrderType()) ? "市价单" : "限价单";
-        String marginModeText = HYPE_MARGIN_MODE_ISOLATED.equalsIgnoreCase(order.getMarginMode()) ? "逐仓" : "全仓";
+        String marginModeText = MARGIN_MODE_ISOLATED.equalsIgnoreCase(order.getMarginMode()) ? "逐仓" : "全仓";
 
         // 实际成交数据
         String actualPriceText = "";
