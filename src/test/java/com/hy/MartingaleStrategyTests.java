@@ -158,13 +158,13 @@ public class MartingaleStrategyTests {
     }
 
     public static void main(String[] args) {
-        BigDecimal entryPrice = new BigDecimal("89300"); // 初始下单价
-        BigDecimal baseStep = new BigDecimal("0.02");         // 2%
+        BigDecimal entryPrice = new BigDecimal("90000"); // 初始下单价
+        BigDecimal baseStep = new BigDecimal("0.05");         // 2%
         BigDecimal amountMultiplier = new BigDecimal("1.1");  // 加仓金额倍数
         BigDecimal stepMultiplier = new BigDecimal("1.1");    // 加仓价差倍数
         BigDecimal leverage = new BigDecimal("1");            // 杠杆倍数
-        BigDecimal maxTotalMargin = new BigDecimal("40000"); // 最大投入保证金
-        int maxAddCount = 15;
+        BigDecimal maxTotalMargin = new BigDecimal("39000"); // 最大投入保证金
+        int maxAddCount = 8;
 
         List<MartingaleOrderLevel> plan = MartingaleStrategyService.generateOrderPlanMaxMargin(
                 entryPrice,
