@@ -106,7 +106,7 @@ public class NumUtil {
         System.out.println("Value after 2.5% decrease: " + decreasedValue);
         System.out.println(calculate(originalValue, new BigDecimal("0")));
         System.out.println(calculateMaxLeverage(BigDecimal.valueOf(1)));
-        System.out.println(calculateExchangeMaxLeverage(BigDecimal.valueOf(3), 100));
+        System.out.println(calculateExchangeMaxLeverage(BigDecimal.valueOf(19.31), 10));
 
     }
 

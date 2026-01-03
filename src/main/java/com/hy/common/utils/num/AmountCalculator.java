@@ -89,14 +89,17 @@ public class AmountCalculator {
         System.out.println("增长 1%: " + increaseResult); // 102.00
         System.out.println("减少 1%: " + decreaseResult); // 98.00
 
-        // 测试 calculateChangePercent
-        BigDecimal initial = new BigDecimal("100");
-        BigDecimal current = new BigDecimal("98");
-        BigDecimal changePercent = calculateChangePercent(initial, current);
-        System.out.println("从110到100 涨跌幅: " + changePercent.abs() + "%"); // 50.00%
 
         BigDecimal value = new BigDecimal("100");
         System.out.println(increase(value, BigDecimal.valueOf(2), 2));
         System.out.println(decrease(value, BigDecimal.valueOf(2), 2));
+
+        // 测试 calculateChangePercent
+        BigDecimal initial = new BigDecimal("10");
+        BigDecimal current = new BigDecimal("10.5");
+        BigDecimal changePercent = calculateChangePercent(initial, current);
+        System.out.println("涨跌幅: " + changePercent + "%"); // -50.00%
+
+
     }
 }

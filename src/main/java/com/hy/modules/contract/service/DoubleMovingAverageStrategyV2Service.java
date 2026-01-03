@@ -209,15 +209,15 @@ public class DoubleMovingAverageStrategyV2Service {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10)));
-            put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15)));
-            put(SymbolEnum.SOLUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20)));
+            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(10)));
+            put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20), BigDecimal.valueOf(15)));
+            put(SymbolEnum.SOLUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
 
-            put(SymbolEnum.XRPUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.XRPUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 4, 20, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20)));
-            put(SymbolEnum.HYPEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 3, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(25)));
-            put(SymbolEnum.DOGEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 5, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(25)));
-            put(SymbolEnum.ZECUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 3, 2, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(30)));
-            put(SymbolEnum.AAVEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.AAVEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 2, 10, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20)));
+            put(SymbolEnum.XRPUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.XRPUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 4, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
+            put(SymbolEnum.HYPEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 3, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(25)));
+            put(SymbolEnum.DOGEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 5, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(25)));
+            put(SymbolEnum.ZECUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 3, 2, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(30)));
+            put(SymbolEnum.AAVEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.AAVEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 2, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
         }
     };
 
@@ -526,6 +526,7 @@ public class DoubleMovingAverageStrategyV2Service {
      * 创建双均线下单信息
      */
     public DoubleMovingAveragePlaceOrder createPlaceOrder(DoubleMovingAverageStrategyConfig conf, String side, BigDecimal latestPrice, BigDecimal stopLossPrice) {
+        boolean isBuy = SIDE_BUY.equals(side);
         DoubleMovingAveragePlaceOrder order = new DoubleMovingAveragePlaceOrder();
         order.setClientOid(Cloid.fromLong(IdUtil.getSnowflakeNextId()).getRaw());
         order.setSymbol(conf.getSymbol());
@@ -534,7 +535,7 @@ public class DoubleMovingAverageStrategyV2Service {
         order.setOrderType(HYPE_ORDER_TYPE_MARKET);
         order.setMarginMode(MARGIN_MODE_CROSSED);
         //计算涨跌幅百分比
-        BigDecimal changePercent = calculateChangePercent(stopLossPrice, latestPrice).abs();
+        BigDecimal changePercent = calculateChangePercent(latestPrice, stopLossPrice).abs();
         //计算最大可开杠杆
         int actualLeverage = calculateExchangeMaxLeverage(changePercent, conf.getMaxLeverage());
         // 计算实际开仓数量
@@ -548,14 +549,14 @@ public class DoubleMovingAverageStrategyV2Service {
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
         //止盈幅度
         BigDecimal takeProfitPercent = BigDecimal.valueOf(1.0);
-        if (SIDE_BUY.equals(side) && gt(latestPrice, stopLossPrice)) {
+        if (isBuy && gt(latestPrice, stopLossPrice)) {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 2.0
             takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
                 //如果止盈价小于1%，则设置latestPrice增加1%为止盈价
                 takeProfitPrice = increase(latestPrice, takeProfitPercent, conf.getPricePlace());
             }
-        } else if (SIDE_SELL.equals(side) && lt(latestPrice, stopLossPrice)) {
+        } else if (!isBuy && lt(latestPrice, stopLossPrice)) {
             // 空头止盈：开仓价 - (止损价 - 开仓价) × 2.0
             takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
             if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
@@ -893,15 +894,15 @@ public class DoubleMovingAverageStrategyV2Service {
         }
 
         // 2. 计算实际盈利百分比（基于盈亏平衡价）
-        BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
+        BigDecimal profitPercent = calculateChangePercent(latestPrice, breakEvenPrice).abs();
 
-        // 3. 盈利必须超过最低阈值（默认2%）才启动动态止盈
+        // 3. 盈利必须超过最低阈值（默认1.5%）才启动动态止盈
         if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
             return BigDecimal.ZERO;  // 盈利不足，不触发
         }
 
         // 4. 计算价格相对于止损价的偏离度
-        BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
+        BigDecimal priceChangePercent = calculateChangePercent(latestPrice, basePrice).abs();
         if (lte(priceChangePercent, config.getDeviationFromMA())) {
             return BigDecimal.ZERO;
         }
@@ -939,7 +940,7 @@ public class DoubleMovingAverageStrategyV2Service {
         }
 
         // 2. 计算实际盈利百分比（基于盈亏平衡价）
-        BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
+        BigDecimal profitPercent = calculateChangePercent(latestPrice, breakEvenPrice).abs();
 
         // 3. 盈利必须超过最低阈值（默认2%）才启动动态止盈
         if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
@@ -947,7 +948,7 @@ public class DoubleMovingAverageStrategyV2Service {
         }
 
         // 4. 计算价格相对于止损价的偏离度
-        BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
+        BigDecimal priceChangePercent = calculateChangePercent(latestPrice, basePrice).abs();
         if (lte(priceChangePercent, config.getDeviationFromMA())) {
             return BigDecimal.ZERO;
         }
