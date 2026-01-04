@@ -5,9 +5,9 @@ import cn.hutool.core.util.IdUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.MailService;
-import com.hy.modules.cex.entity.DoubleMovingAverageData;
-import com.hy.modules.cex.entity.DoubleMovingAveragePlaceOrder;
-import com.hy.modules.cex.entity.DoubleMovingAverageStrategyConfig;
+import com.hy.modules.dex.entity.MovingAverageData;
+import com.hy.modules.dex.entity.MovingAveragePlaceOrder;
+import com.hy.modules.dex.entity.MovingAverageStrategyConfig;
 import io.github.hyperliquid.sdk.HyperliquidClient;
 import io.github.hyperliquid.sdk.apis.Info;
 import io.github.hyperliquid.sdk.model.info.*;
@@ -75,7 +75,7 @@ public class MovingAverageStrategyService {
     /**
      * 双均线平均价格
      **/
-    private final static Map<String, DoubleMovingAverageData> DMAS_CACHE = new ConcurrentHashMap<>();
+    private final static Map<String, MovingAverageData> DMAS_CACHE = new ConcurrentHashMap<>();
 
     /**
      * 最新价格缓存
@@ -91,7 +91,7 @@ public class MovingAverageStrategyService {
     /**
      * 订单队列 - 存储待执行的订单参数
      */
-    private static final BlockingQueue<DoubleMovingAveragePlaceOrder> ORDER_QUEUE = new LinkedBlockingQueue<>(1000);
+    private static final BlockingQueue<MovingAveragePlaceOrder> ORDER_QUEUE = new LinkedBlockingQueue<>(1000);
 
 
     /**
@@ -207,17 +207,17 @@ public class MovingAverageStrategyService {
      * - BTC/ETH H1周期：10-12%（主流币，趋势稳健）
      * - 山寨币 H4周期：20-25%（波动更大，但不宜过度30%）
      **/
-    private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
+    private final static Map<String, MovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.MINUTE_15.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(3)));
-            put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20), BigDecimal.valueOf(15)));
-            put(SymbolEnum.SOLUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
+            put(SymbolEnum.BTCUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.MINUTE_15.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(3)));
+            put(SymbolEnum.ETHUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20), BigDecimal.valueOf(15)));
+            put(SymbolEnum.SOLUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
 
-            put(SymbolEnum.XRPUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.XRPUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 4, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
-            put(SymbolEnum.HYPEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 3, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(25)));
-            put(SymbolEnum.DOGEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 5, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(25)));
-            put(SymbolEnum.ZECUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 3, 2, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(30)));
-            put(SymbolEnum.AAVEUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.AAVEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 2, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
+            put(SymbolEnum.XRPUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.XRPUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 4, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
+            put(SymbolEnum.HYPEUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 3, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(25)));
+            put(SymbolEnum.DOGEUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 0, 5, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(25)));
+            put(SymbolEnum.ZECUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.ZECUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 3, 2, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(30)));
+            put(SymbolEnum.AAVEUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.AAVEUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 2, 10, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
         }
     };
 
@@ -277,8 +277,8 @@ public class MovingAverageStrategyService {
      * 更新双均线指标数据
      * 计算并缓存MA/EMA指标，同时缓存BarSeries用于震荡过滤计算
      **/
-    public void updateDoubleMovingAverageIndicators() {
-        for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
+    public void updateMovingAverageIndicators() {
+        for (MovingAverageStrategyConfig config : CONFIG_MAP.values()) {
             taskExecutor.execute(() -> {
                 try {
                     CandleInterval candleInterval = CandleInterval.fromCode(config.getTimeFrame());
@@ -286,11 +286,11 @@ public class MovingAverageStrategyService {
                     if (candles == null || candles.isEmpty()) return;
                     if (candles.size() < 500) return;
                     BarSeries barSeries = buildSeriesFromCandles(candles, candleInterval.getDuration());
-                    DoubleMovingAverageData data = calculateIndicators(barSeries, config.getPricePlace());
+                    MovingAverageData data = calculateIndicators(barSeries, config.getPricePlace());
                     // 缓存双均线指标数据
                     DMAS_CACHE.put(config.getSymbol(), data);
                 } catch (Exception e) {
-                    log.error("updateDoubleMovingAverageIndicators-error:{}", config.getSymbol(), e);
+                    log.error("updateMovingAverageIndicators-error:{}", config.getSymbol(), e);
                 }
             });
         }
@@ -301,7 +301,7 @@ public class MovingAverageStrategyService {
      * 通过REST API获取最新价格并更新缓存
      */
     public void refreshMarketPriceCache() {
-        for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
+        for (MovingAverageStrategyConfig config : CONFIG_MAP.values()) {
             taskExecutor.execute(() -> {
                 try {
                     List<Candle> candles = client.getInfo().candleSnapshotByCount(config.getSymbol(), CandleInterval.MINUTE_1, 1);
@@ -324,14 +324,14 @@ public class MovingAverageStrategyService {
             if (DMAS_CACHE.isEmpty() || LATEST_PRICE_CACHE.isEmpty()) return;
 
             DMAS_CACHE.forEach((symbol, data) -> {
-                DoubleMovingAverageStrategyConfig conf = CONFIG_MAP.get(symbol);
+                MovingAverageStrategyConfig conf = CONFIG_MAP.get(symbol);
                 if (!conf.getEnable() || !LATEST_PRICE_CACHE.containsKey(conf.getSymbol())) return;
 
                 // 1. 仓位状态检查（必须允许开单），统一获取/创建状态对象（默认 false，不允许）
                 AtomicBoolean allowOpen = canOpenPositionMap.computeIfAbsent(symbol, k -> new AtomicBoolean(false));
                 if (!allowOpen.get()) return;
                 BigDecimal latestPrice = LATEST_PRICE_CACHE.get(conf.getSymbol());
-                DoubleMovingAveragePlaceOrder order = null;
+                MovingAveragePlaceOrder order = null;
 
                 // 2. 跟踪趋势下单
                 if (isStrictMATrendConfirmed(data)) {
@@ -364,7 +364,7 @@ public class MovingAverageStrategyService {
     /**
      * 构建跟踪趋势下单
      **/
-    public DoubleMovingAveragePlaceOrder buildTrendFollowingPlaceOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+    public MovingAveragePlaceOrder buildTrendFollowingPlaceOrder(MovingAverageStrategyConfig conf, MovingAverageData data, BigDecimal latestPrice) {
         // 检测多头趋势
         if (isLongTrendCondition(data, latestPrice)) {
             return buildLongTrendOrder(conf, data, latestPrice);
@@ -379,7 +379,7 @@ public class MovingAverageStrategyService {
     /**
      * 检测多头趋势条件
      */
-    private boolean isLongTrendCondition(DoubleMovingAverageData data, BigDecimal latestPrice) {
+    private boolean isLongTrendCondition(MovingAverageData data, BigDecimal latestPrice) {
         return gt(latestPrice, data.getMa144())
                 && gt(latestPrice, data.getEma144())
                 && (gt(data.getMa21(), data.getMa144()) || gt(data.getEma21(), data.getEma144()));
@@ -388,7 +388,7 @@ public class MovingAverageStrategyService {
     /**
      * 检测空头趋势条件
      */
-    private boolean isShortTrendCondition(DoubleMovingAverageData data, BigDecimal latestPrice) {
+    private boolean isShortTrendCondition(MovingAverageData data, BigDecimal latestPrice) {
         return lt(latestPrice, data.getMa144())
                 && lt(latestPrice, data.getEma144())
                 && (lt(data.getMa21(), data.getMa144()) || lt(data.getEma21(), data.getEma144()));
@@ -397,7 +397,7 @@ public class MovingAverageStrategyService {
     /**
      * 构建多头趋势订单
      */
-    private DoubleMovingAveragePlaceOrder buildLongTrendOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+    private MovingAveragePlaceOrder buildLongTrendOrder(MovingAverageStrategyConfig conf, MovingAverageData data, BigDecimal latestPrice) {
         BigDecimal highPrice = data.getMaxValue();
         BigDecimal lowPrice = data.getMinValue();
         // 计算中间价区间 (优化: 使用除法代替减法+乘法)
@@ -416,7 +416,7 @@ public class MovingAverageStrategyService {
     /**
      * 构建空头趋势订单
      */
-    private DoubleMovingAveragePlaceOrder buildShortTrendOrder(DoubleMovingAverageStrategyConfig conf, DoubleMovingAverageData data, BigDecimal latestPrice) {
+    private MovingAveragePlaceOrder buildShortTrendOrder(MovingAverageStrategyConfig conf, MovingAverageData data, BigDecimal latestPrice) {
         BigDecimal highPrice = data.getMaxValue();
         BigDecimal lowPrice = data.getMinValue();
         // 计算中间价区间 (优化: 使用除法代替减法+乘法)
@@ -484,14 +484,14 @@ public class MovingAverageStrategyService {
      * 检测是否形成严格的多重均线趋势排列
      * 满足MA21/55/144和EMA21/55/144的多重验证条件
      */
-    public boolean isStrictMATrendConfirmed(DoubleMovingAverageData data) {
+    public boolean isStrictMATrendConfirmed(MovingAverageData data) {
         return isLongTrend(data) || isShortTrend(data);
     }
 
     /**
      * 多头趋势检测
      */
-    private boolean isLongTrend(DoubleMovingAverageData data) {
+    private boolean isLongTrend(MovingAverageData data) {
         // MA条件: ma21 > ma55 且 ma21 > ma144
         boolean maCondition = gt(data.getMa21(), data.getMa55()) && gt(data.getMa21(), data.getMa144());
         // EMA条件: ema21 > ema55 且 ema21 > ema144
@@ -508,7 +508,7 @@ public class MovingAverageStrategyService {
     /**
      * 空头趋势检测
      */
-    private boolean isShortTrend(DoubleMovingAverageData data) {
+    private boolean isShortTrend(MovingAverageData data) {
         // MA条件: ma21 < ma55 且 ma21 < ma144
         boolean maCondition = lt(data.getMa21(), data.getMa55()) && lt(data.getMa21(), data.getMa144());
         // EMA条件: ema21 < ema55 且 ema21 < ema144
@@ -525,9 +525,9 @@ public class MovingAverageStrategyService {
     /**
      * 创建双均线下单信息
      */
-    public DoubleMovingAveragePlaceOrder createPlaceOrder(DoubleMovingAverageStrategyConfig conf, String side, BigDecimal latestPrice, BigDecimal stopLossPrice) {
+    public MovingAveragePlaceOrder createPlaceOrder(MovingAverageStrategyConfig conf, String side, BigDecimal latestPrice, BigDecimal stopLossPrice) {
         boolean isBuy = SIDE_BUY.equals(side);
-        DoubleMovingAveragePlaceOrder order = new DoubleMovingAveragePlaceOrder();
+        MovingAveragePlaceOrder order = new MovingAveragePlaceOrder();
         order.setClientOid(Cloid.fromLong(IdUtil.getSnowflakeNextId()).getRaw());
         order.setSymbol(conf.getSymbol());
         order.setSide(side);
@@ -574,9 +574,9 @@ public class MovingAverageStrategyService {
     /**
      * 验证账户余额
      */
-    private boolean validateAccountBalance(DoubleMovingAveragePlaceOrder placeOrder) {
+    private boolean validateAccountBalance(MovingAveragePlaceOrder placeOrder) {
         ClearinghouseState state = getAccountInfo();
-        DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(placeOrder.getSymbol());
+        MovingAverageStrategyConfig config = CONFIG_MAP.get(placeOrder.getSymbol());
         BigDecimal available = new BigDecimal(state.getWithdrawable());
         BigDecimal maxInvestAmount = config.getOpenAmount();
         placeOrder.setAccountBalance(available);
@@ -597,7 +597,7 @@ public class MovingAverageStrategyService {
             taskExecutor.execute(() -> {
                 while (true) {
                     try {
-                        DoubleMovingAveragePlaceOrder orderParam = ORDER_QUEUE.take(); // 阻塞直到有数据
+                        MovingAveragePlaceOrder orderParam = ORDER_QUEUE.take(); // 阻塞直到有数据
                         // 校验当前是否已有仓位
                         if (getAllPosition().containsKey(orderParam.getSymbol())) continue;
                         // 校验账户余额
@@ -627,7 +627,7 @@ public class MovingAverageStrategyService {
     /**
      * 处理下单成功后的操作
      */
-    private void handleSuccessfulOrder(DoubleMovingAveragePlaceOrder orderParam, BulkOrder bulkOrder) {
+    private void handleSuccessfulOrder(MovingAveragePlaceOrder orderParam, BulkOrder bulkOrder) {
         try {
             if (orderParam.getTakeProfitSize() == null || orderParam.getTakeProfitPrice() == null) {
                 return;
@@ -658,7 +658,7 @@ public class MovingAverageStrategyService {
     /**
      * 执行下单操作
      */
-    private BulkOrder executeOrder(DoubleMovingAveragePlaceOrder orderParam) {
+    private BulkOrder executeOrder(MovingAveragePlaceOrder orderParam) {
         boolean isBuy = SIDE_BUY.equals(orderParam.getSide());
         String coin = orderParam.getSymbol();
         String size = orderParam.getSize();
@@ -715,7 +715,7 @@ public class MovingAverageStrategyService {
      * 计算最新双均线指标
      * MA21 , EMA21 ,MA55 , EMA55, MA144 , EMA144
      **/
-    public static DoubleMovingAverageData calculateIndicators(BarSeries series, Integer pricePlace) {
+    public static MovingAverageData calculateIndicators(BarSeries series, Integer pricePlace) {
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
         Indicator<Num> ma21 = new SMAIndicator(closePrice, 21);
         Indicator<Num> ema21 = new EMAIndicator(closePrice, 21);
@@ -724,7 +724,7 @@ public class MovingAverageStrategyService {
         Indicator<Num> ma144 = new SMAIndicator(closePrice, 144);
         Indicator<Num> ema144 = new EMAIndicator(closePrice, 144);
         int endIndex = series.getEndIndex();
-        return new DoubleMovingAverageData(
+        return new MovingAverageData(
                 ma21.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
                 ma55.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
                 ma144.getValue(endIndex).bigDecimalValue().setScale(pricePlace, RoundingMode.HALF_UP),
@@ -753,7 +753,7 @@ public class MovingAverageStrategyService {
      */
     public void subscribeMarketDataViaWebSocket() {
         Info info = client.getInfo();
-        for (DoubleMovingAverageStrategyConfig config : CONFIG_MAP.values()) {
+        for (MovingAverageStrategyConfig config : CONFIG_MAP.values()) {
             String symbol = config.getSymbol();
             info.subscribe(TradesSubscription.of(symbol), msg -> {
                 JsonNode data = msg.get("data");
@@ -813,11 +813,11 @@ public class MovingAverageStrategyService {
 
         positionMap.forEach((symbol, position) -> {
             try {
-                DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
+                MovingAverageStrategyConfig config = CONFIG_MAP.get(symbol);
                 if (config == null) return;
 
                 BigDecimal latestPrice = LATEST_PRICE_CACHE.get(config.getSymbol());
-                DoubleMovingAverageData data = DMAS_CACHE.get(config.getSymbol());
+                MovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
 
                 // 计算动态止盈价（基于持仓方向和盈亏平衡价）
@@ -847,8 +847,8 @@ public class MovingAverageStrategyService {
      * @param position    持仓信息（包含盈亏平衡价、持仓方向）
      * @return 动态止盈价，如果不满足条件则返回ZERO
      */
-    private BigDecimal calculateDynamicStopProfitPrice(BigDecimal latestPrice, DoubleMovingAverageData data,
-                                                       DoubleMovingAverageStrategyConfig config, ClearinghouseState.Position position) {
+    private BigDecimal calculateDynamicStopProfitPrice(BigDecimal latestPrice, MovingAverageData data,
+                                                       MovingAverageStrategyConfig config, ClearinghouseState.Position position) {
         BigDecimal maxValue = data.getMaxValue();
         BigDecimal minValue = data.getMinValue();
 
@@ -877,7 +877,7 @@ public class MovingAverageStrategyService {
      * @param config         策略配置
      */
     private BigDecimal calculateStopProfitForLong(BigDecimal latestPrice, BigDecimal basePrice,
-                                                  BigDecimal breakEvenPrice, DoubleMovingAverageStrategyConfig config) {
+                                                  BigDecimal breakEvenPrice, MovingAverageStrategyConfig config) {
         // 1. 首先检查是否已经盈利
         if (lte(latestPrice, breakEvenPrice)) {
             return BigDecimal.ZERO;  // 还未盈利，不触发动态止盈
@@ -923,7 +923,7 @@ public class MovingAverageStrategyService {
      * @param config         策略配置
      */
     private BigDecimal calculateStopProfitForShort(BigDecimal latestPrice, BigDecimal basePrice,
-                                                   BigDecimal breakEvenPrice, DoubleMovingAverageStrategyConfig config) {
+                                                   BigDecimal breakEvenPrice, MovingAverageStrategyConfig config) {
         // 1. 首先检查是否已经盈利
         if (gte(latestPrice, breakEvenPrice)) {
             return BigDecimal.ZERO;  // 还未盈利，不触发动态止盈
@@ -996,7 +996,7 @@ public class MovingAverageStrategyService {
     /**
      * 更新止损订单
      */
-    private void updateStopLossOrders(List<FrontendOpenOrder> entrustedOrders, DoubleMovingAverageData data, BigDecimal stopProfitPrice) {
+    private void updateStopLossOrders(List<FrontendOpenOrder> entrustedOrders, MovingAverageData data, BigDecimal stopProfitPrice) {
         for (FrontendOpenOrder order : entrustedOrders) {
             try {
                 // 仅处理止损计划订单
@@ -1098,7 +1098,7 @@ public class MovingAverageStrategyService {
      * @param position 仓位
      * @return HTML格式的邮件内容
      */
-    public String buildOrderEmailContent(DoubleMovingAveragePlaceOrder order, ClearinghouseState.Position position, String oid) {
+    public String buildOrderEmailContent(MovingAveragePlaceOrder order, ClearinghouseState.Position position, String oid) {
         // 提取实际成交数据
         boolean hasRealData = (position != null);
 

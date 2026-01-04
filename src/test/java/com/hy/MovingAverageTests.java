@@ -4,8 +4,8 @@ import cn.hutool.core.date.DateUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hy.common.enums.SymbolEnum;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.modules.cex.entity.DoubleMovingAveragePlaceOrder;
-import com.hy.modules.cex.entity.DoubleMovingAverageStrategyConfig;
+import com.hy.modules.dex.entity.MovingAveragePlaceOrder;
+import com.hy.modules.dex.entity.MovingAverageStrategyConfig;
 import com.hy.modules.dex.service.MovingAverageStrategyService;
 import io.github.hyperliquid.sdk.HyperliquidClient;
 import io.github.hyperliquid.sdk.model.info.CandleInterval;
@@ -67,19 +67,19 @@ public class MovingAverageTests {
 
     @Test
     public void createPlaceOrder() throws IOException {
-        Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
+        Map<String, MovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
             {
-                put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10.0)));
-                put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
-                //put(SymbolEnum.SOLUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20.0)));
-                //put(SymbolEnum.ZECUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), CandleInterval.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
-                //put(SymbolEnum.HYPEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), CandleInterval.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
-                //put(SymbolEnum.DOGEUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDT.getCode(), CandleInterval.H4.getCode(), 0, 5, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
-                //put(SymbolEnum.BNBUSDT.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BNBUSDT.getCode(), CandleInterval.H4.getCode(), 2, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
+                put(SymbolEnum.BTCUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20.0), BigDecimal.valueOf(10.0)));
+                put(SymbolEnum.ETHUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20.0), BigDecimal.valueOf(15.0)));
+                //put(SymbolEnum.SOLUSDT.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.SOLUSDT.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20.0), BigDecimal.valueOf(20.0)));
+                //put(SymbolEnum.ZECUSDT.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.ZECUSDT.getCode(), CandleInterval.H4.getCode(), 3, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(22.0)));
+                //put(SymbolEnum.HYPEUSDT.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.HYPEUSDT.getCode(), CandleInterval.H4.getCode(), 2, 3, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
+                //put(SymbolEnum.DOGEUSDT.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.DOGEUSDT.getCode(), CandleInterval.H4.getCode(), 0, 5, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(25.0)));
+                //put(SymbolEnum.BNBUSDT.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.BNBUSDT.getCode(), CandleInterval.H4.getCode(), 2, 2, 75, BigDecimal.valueOf(10.0), BigDecimal.valueOf(20.0)));
             }
         };
-        DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(SymbolEnum.BTCUSDC.getCode());
-        DoubleMovingAveragePlaceOrder order = movingAverageStrategyService.createPlaceOrder(config, SIDE_SELL, BigDecimal.valueOf(85000), BigDecimal.valueOf(86000));
+        MovingAverageStrategyConfig config = CONFIG_MAP.get(SymbolEnum.BTCUSDC.getCode());
+        MovingAveragePlaceOrder order = movingAverageStrategyService.createPlaceOrder(config, SIDE_SELL, BigDecimal.valueOf(85000), BigDecimal.valueOf(86000));
         System.out.println(JsonUtil.toJson(order));
     }
 

@@ -24,7 +24,7 @@ public class MovingAverageStrategyTaskService {
     @PostConstruct
     public void init() {
         //启动时执行一次
-        updateDoubleMovingAverageIndicators();
+        updateMovingAverageIndicators();
         movingAverageStrategyService.init();
     }
 
@@ -33,11 +33,11 @@ public class MovingAverageStrategyTaskService {
      * 每五分钟执行一次
      **/
     @Scheduled(cron = "0 */5 * * * ?")
-    public void updateDoubleMovingAverageIndicators() {
+    public void updateMovingAverageIndicators() {
         try {
-            movingAverageStrategyService.updateDoubleMovingAverageIndicators();
+            movingAverageStrategyService.updateMovingAverageIndicators();
         } catch (Exception e) {
-            log.error("updateDoubleMovingAverageIndicators-error", e);
+            log.error("updateMovingAverageIndicators-error", e);
         }
     }
 
