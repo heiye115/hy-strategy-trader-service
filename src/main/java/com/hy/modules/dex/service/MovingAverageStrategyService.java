@@ -894,7 +894,7 @@ public class MovingAverageStrategyService {
         }
 
         // 2. 计算实际盈利百分比（基于盈亏平衡价）
-        BigDecimal profitPercent = calculateChangePercent(latestPrice, breakEvenPrice).abs();
+        BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
 
         // 3. 盈利必须超过最低阈值（默认1.5%）才启动动态止盈
         if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
@@ -902,7 +902,7 @@ public class MovingAverageStrategyService {
         }
 
         // 4. 计算价格相对于止损价的偏离度
-        BigDecimal priceChangePercent = calculateChangePercent(latestPrice, basePrice).abs();
+        BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
         if (lte(priceChangePercent, config.getDeviationFromMA())) {
             return BigDecimal.ZERO;
         }
@@ -940,7 +940,7 @@ public class MovingAverageStrategyService {
         }
 
         // 2. 计算实际盈利百分比（基于盈亏平衡价）
-        BigDecimal profitPercent = calculateChangePercent(latestPrice, breakEvenPrice).abs();
+        BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
 
         // 3. 盈利必须超过最低阈值（默认2%）才启动动态止盈
         if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
@@ -948,7 +948,7 @@ public class MovingAverageStrategyService {
         }
 
         // 4. 计算价格相对于止损价的偏离度
-        BigDecimal priceChangePercent = calculateChangePercent(latestPrice, basePrice).abs();
+        BigDecimal priceChangePercent = calculateChangePercent(basePrice, latestPrice).abs();
         if (lte(priceChangePercent, config.getDeviationFromMA())) {
             return BigDecimal.ZERO;
         }
