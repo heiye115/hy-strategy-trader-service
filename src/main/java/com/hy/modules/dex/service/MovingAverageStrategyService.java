@@ -209,7 +209,7 @@ public class MovingAverageStrategyService {
      **/
     private final static Map<String, MovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.MINUTE_15.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(3)));
+            put(SymbolEnum.BTCUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(10)));
             put(SymbolEnum.ETHUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20), BigDecimal.valueOf(15)));
             put(SymbolEnum.SOLUSDC.getCode(), new MovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
 
@@ -819,7 +819,8 @@ public class MovingAverageStrategyService {
                 BigDecimal latestPrice = LATEST_PRICE_CACHE.get(config.getSymbol());
                 MovingAverageData data = DMAS_CACHE.get(config.getSymbol());
                 if (latestPrice == null || data == null) return;
-
+                // 如果未实现盈亏小于等于0，则不处理
+                if (lt(new BigDecimal(position.getUnrealizedPnl()), BigDecimal.ZERO)) return;
                 // 计算动态止盈价（基于持仓方向和盈亏平衡价）
                 BigDecimal stopProfitPrice = calculateDynamicStopProfitPrice(latestPrice, data, config, position);
                 // 如果动态止盈价小于等于0，则不更新
@@ -932,7 +933,7 @@ public class MovingAverageStrategyService {
         // 2. 计算实际盈利百分比（基于盈亏平衡价）
         BigDecimal profitPercent = calculateChangePercent(breakEvenPrice, latestPrice).abs();
 
-        // 3. 盈利必须超过最低阈值（默认2%）才启动动态止盈
+        // 3. 盈利必须超过最低阈值（默认1.5%）才启动动态止盈
         if (lte(profitPercent, MIN_PROFIT_THRESHOLD)) {
             return BigDecimal.ZERO;  // 盈利不足，不触发
         }
