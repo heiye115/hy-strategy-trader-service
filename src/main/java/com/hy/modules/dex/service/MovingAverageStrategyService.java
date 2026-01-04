@@ -209,7 +209,7 @@ public class MovingAverageStrategyService {
      **/
     private final static Map<String, DoubleMovingAverageStrategyConfig> CONFIG_MAP = new ConcurrentHashMap<>() {
         {
-            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(10)));
+            put(SymbolEnum.BTCUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.BTCUSDC.getCode(), CandleInterval.MINUTE_15.getCode(), 4, 1, 40, BigDecimal.valueOf(20), BigDecimal.valueOf(3)));
             put(SymbolEnum.ETHUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.ETHUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 2, 2, 25, BigDecimal.valueOf(20), BigDecimal.valueOf(15)));
             put(SymbolEnum.SOLUSDC.getCode(), new DoubleMovingAverageStrategyConfig(true, SymbolEnum.SOLUSDC.getCode(), CandleInterval.HOUR_4.getCode(), 1, 3, 20, BigDecimal.valueOf(20), BigDecimal.valueOf(20)));
 
@@ -545,24 +545,14 @@ public class MovingAverageStrategyService {
         order.setLeverage(actualLeverage);
         // 止盈数量 默认50%
         order.setTakeProfitSize(size.multiply(BigDecimal.valueOf(0.5)).setScale(conf.getVolumePlace(), RoundingMode.HALF_UP).toPlainString());
-        //止盈价需要满足：在2:1盈亏比的基础上，确保止盈至少能赚1%
+        //止盈价需要满足： 2:1盈亏比
         BigDecimal takeProfitPrice = BigDecimal.ZERO;
-        //止盈幅度
-        BigDecimal takeProfitPercent = BigDecimal.valueOf(1.0);
         if (isBuy && gt(latestPrice, stopLossPrice)) {
             // 多头止盈：开仓价 + (开仓价 - 止损价) × 2.0
             takeProfitPrice = latestPrice.add(latestPrice.subtract(stopLossPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
-                //如果止盈价小于1%，则设置latestPrice增加1%为止盈价
-                takeProfitPrice = increase(latestPrice, takeProfitPercent, conf.getPricePlace());
-            }
         } else if (!isBuy && lt(latestPrice, stopLossPrice)) {
             // 空头止盈：开仓价 - (止损价 - 开仓价) × 2.0
             takeProfitPrice = latestPrice.subtract(stopLossPrice.subtract(latestPrice).multiply(new BigDecimal("2.0"))).setScale(conf.getPricePlace(), RoundingMode.HALF_UP);
-            if (lt(calculateChangePercent(latestPrice, takeProfitPrice).abs(), takeProfitPercent)) {
-                //如果止盈价小于1%，则设置latestPrice减少1%为止盈价
-                takeProfitPrice = decrease(latestPrice, takeProfitPercent, conf.getPricePlace());
-            }
         }
         order.setTakeProfitPrice(takeProfitPrice.toPlainString());
         return order;
