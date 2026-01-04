@@ -673,10 +673,10 @@ public class MovingAverageStrategyService {
         OrderBuilder stopLoss = OrderRequest.builder().perp(coin).limitPrice(stopLossPrice).orderType(TriggerOrderType.sl(stopLossPrice, true)).reduceOnly();
         if (isBuy) {
             takeProfit.sell(takeProfitSize);
-            stopLoss.sell(size);
+            stopLoss.sell("0");
         } else {
             takeProfit.buy(takeProfitSize);
-            stopLoss.buy(size);
+            stopLoss.buy("0");
         }
         orders.add(takeProfit.build());
         orders.add(stopLoss.build());
@@ -1080,7 +1080,7 @@ public class MovingAverageStrategyService {
             ModifyOrderRequest req = ModifyOrderRequest.byOid(order.getCoin(), order.getOid());
             req.setBuy(!"A".equals(order.getSide()));
             req.setLimitPx(newTriggerPrice);
-            req.setSz(order.getSz());
+            req.setSz("0");
             req.setReduceOnly(true);
             req.setOrderType(TriggerOrderType.sl(newTriggerPrice, true));
 
