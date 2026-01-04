@@ -1,6 +1,6 @@
-package com.hy.modules.contract.task;
+package com.hy.modules.schedule;
 
-import com.hy.modules.contract.service.MartingaleStrategyService;
+import com.hy.modules.cex.service.MartingaleStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

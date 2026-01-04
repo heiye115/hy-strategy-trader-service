@@ -1,4 +1,4 @@
-package com.hy.modules.contract.service;
+package com.hy.modules.cex.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
@@ -12,10 +12,10 @@ import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.modules.contract.entity.RangePriceOrder;
-import com.hy.modules.contract.entity.ShortTermPlaceOrderParam;
-import com.hy.modules.contract.entity.ShortTermPrice;
-import com.hy.modules.contract.entity.ShortTermTradingStrategyConfig;
+import com.hy.modules.cex.entity.RangePriceOrder;
+import com.hy.modules.cex.entity.ShortTermPlaceOrderParam;
+import com.hy.modules.cex.entity.ShortTermPrice;
+import com.hy.modules.cex.entity.ShortTermTradingStrategyConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

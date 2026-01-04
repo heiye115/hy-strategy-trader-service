@@ -2,8 +2,8 @@ package com.hy;
 
 import com.hy.common.config.BitgetProperties;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.modules.contract.entity.MartingaleStrategyConfig;
-import com.hy.modules.contract.service.MartingaleStrategyService;
+import com.hy.modules.cex.entity.MartingaleStrategyConfig;
+import com.hy.modules.cex.service.MartingaleStrategyService;
 import io.github.hyperliquid.sdk.HyperliquidClient;
 import org.jasypt.util.text.AES256TextEncryptor;
 import org.junit.jupiter.api.Test;

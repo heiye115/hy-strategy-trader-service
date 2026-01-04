@@ -1,13 +1,13 @@
-package com.hy.modules.contract.service;
+package com.hy.modules.dex.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.MailService;
-import com.hy.modules.contract.entity.DoubleMovingAverageData;
-import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
-import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
+import com.hy.modules.cex.entity.DoubleMovingAverageData;
+import com.hy.modules.cex.entity.DoubleMovingAveragePlaceOrder;
+import com.hy.modules.cex.entity.DoubleMovingAverageStrategyConfig;
 import io.github.hyperliquid.sdk.HyperliquidClient;
 import io.github.hyperliquid.sdk.apis.Info;
 import io.github.hyperliquid.sdk.model.info.*;
@@ -52,7 +52,7 @@ import static com.hy.common.utils.num.NumUtil.calculateExchangeMaxLeverage;
  */
 @Slf4j
 @Service
-public class DoubleMovingAverageStrategyV2Service {
+public class MovingAverageStrategyService {
 
 
     private final HyperliquidClient client;
@@ -239,7 +239,7 @@ public class DoubleMovingAverageStrategyV2Service {
     @Value("${spring.mail.username}")
     private String emailRecipient;
 
-    public DoubleMovingAverageStrategyV2Service(MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler, @Value("${hyperliquid.primary-wallet-address}") String primaryWalletAddress, @Value("${hyperliquid.api-wallet-private-key}") String apiWalletPrivateKey) {
+    public MovingAverageStrategyService(MailService mailService, @Qualifier("applicationTaskExecutor") SimpleAsyncTaskExecutor taskExecutor, @Qualifier("taskScheduler") SimpleAsyncTaskScheduler taskScheduler, @Value("${hyperliquid.primary-wallet-address}") String primaryWalletAddress, @Value("${hyperliquid.api-wallet-private-key}") String apiWalletPrivateKey) {
         this.client = HyperliquidClient.builder()
                 .addApiWallet(primaryWalletAddress, apiWalletPrivateKey)
                 .build();

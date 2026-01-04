@@ -1,6 +1,6 @@
-package com.hy.modules.contract.task;
+package com.hy.modules.schedule;
 
-import com.hy.modules.contract.service.ShortTermTradingStrategyService;
+import com.hy.modules.cex.service.ShortTermTradingStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

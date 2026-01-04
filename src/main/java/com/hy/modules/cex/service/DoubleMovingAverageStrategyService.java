@@ -1,4 +1,4 @@
-package com.hy.modules.contract.service;
+package com.hy.modules.cex.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
@@ -11,9 +11,9 @@ import com.hy.common.enums.SymbolEnum;
 import com.hy.common.service.BitgetCustomService;
 import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.modules.contract.entity.DoubleMovingAverageData;
-import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
-import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
+import com.hy.modules.cex.entity.DoubleMovingAverageData;
+import com.hy.modules.cex.entity.DoubleMovingAveragePlaceOrder;
+import com.hy.modules.cex.entity.DoubleMovingAverageStrategyConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

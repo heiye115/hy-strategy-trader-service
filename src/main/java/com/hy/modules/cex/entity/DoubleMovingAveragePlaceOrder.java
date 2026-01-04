@@ -1,4 +1,4 @@
-package com.hy.modules.contract.entity;
+package com.hy.modules.cex.entity;
 
 
 import lombok.Getter;
@@ -9,13 +9,13 @@ import lombok.ToString;
 import java.math.BigDecimal;
 
 /**
- * 区间交易下单
+ * 双均线交易下单
  **/
 @Getter
 @Setter
 @ToString
 @NoArgsConstructor
-public class RangePricePlaceOrderParam {
+public class DoubleMovingAveragePlaceOrder {
 
 
     /**
@@ -48,13 +48,6 @@ public class RangePricePlaceOrderParam {
      **/
     private BigDecimal price;
 
-    /**
-     * 交易类型(仅限双向持仓)
-     * 双向持仓模式下必填，单向持仓时不要填，否则会报错
-     * open: 开仓
-     * close: 平仓
-     **/
-    private String tradeSide;
 
     /**
      * 订单类型
@@ -71,23 +64,29 @@ public class RangePricePlaceOrderParam {
     private String marginMode;
 
     /**
-     * 预设止损价
+     * 预设止损值
+     * 为空则默认不设止损。
      **/
-    private BigDecimal presetStopLossPrice;
+    private String stopLossPrice;
 
     /**
-     * 预设止盈价1
-     **/
-    private BigDecimal presetStopSurplusPrice1;
+     * 预设止盈价
+     * 为空则默认不设止盈。
+     */
+    private String takeProfitPrice;
 
     /**
-     * 预设止盈价2
+     * 止盈数量
      **/
-    private BigDecimal presetStopSurplusPrice2;
+    private String takeProfitSize;
 
     /**
-     * 预设止盈价3
+     * 账户余额
      **/
-    private BigDecimal presetStopSurplusPrice3;
+    private BigDecimal accountBalance;
 
+    /**
+     * 杠杆倍数
+     **/
+    private Integer leverage;
 }

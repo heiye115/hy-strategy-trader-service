@@ -1,4 +1,4 @@
-package com.hy.modules.contract.entity;
+package com.hy.modules.cex.entity;
 
 
 import lombok.Getter;
@@ -9,23 +9,19 @@ import lombok.ToString;
 import java.math.BigDecimal;
 
 /**
- * 区间交易订单信息
+ * 区间交易下单
  **/
 @Getter
 @Setter
 @ToString
 @NoArgsConstructor
-public class RangePriceOrder {
+public class RangePricePlaceOrderParam {
+
 
     /**
      * 自定义订单id
      **/
     private String clientOid;
-
-    /**
-     * 订单id
-     **/
-    private String orderId;
 
     /**
      * 交易对
@@ -53,6 +49,14 @@ public class RangePriceOrder {
     private BigDecimal price;
 
     /**
+     * 交易类型(仅限双向持仓)
+     * 双向持仓模式下必填，单向持仓时不要填，否则会报错
+     * open: 开仓
+     * close: 平仓
+     **/
+    private String tradeSide;
+
+    /**
      * 订单类型
      * limit: 限价单，
      * market: 市价单
@@ -67,18 +71,23 @@ public class RangePriceOrder {
     private String marginMode;
 
     /**
-     * 预设止损值
-     * 为空则默认不设止损。
+     * 预设止损价
      **/
-    private String presetStopLossPrice;
+    private BigDecimal presetStopLossPrice;
 
     /**
-     * 初始开仓金额
+     * 预设止盈价1
      **/
-    private BigDecimal initialOpenAmount;
+    private BigDecimal presetStopSurplusPrice1;
 
     /**
-     * 创建时间
+     * 预设止盈价2
      **/
-    private String createTime;
+    private BigDecimal presetStopSurplusPrice2;
+
+    /**
+     * 预设止盈价3
+     **/
+    private BigDecimal presetStopSurplusPrice3;
+
 }

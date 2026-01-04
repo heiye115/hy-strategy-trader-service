@@ -1,68 +1,42 @@
 package com.hy;
 
 import cn.hutool.core.date.DateUtil;
-import com.bitget.custom.entity.BitgetMixMarketCandlesResp;
-import com.bitget.openapi.dto.response.ResponseResult;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.hy.common.enums.BitgetAccountType;
-import com.hy.common.enums.BitgetEnum;
 import com.hy.common.enums.SymbolEnum;
-import com.hy.common.service.BitgetCustomService;
 import com.hy.common.utils.json.JsonUtil;
-import com.hy.modules.contract.entity.DoubleMovingAverageData;
-import com.hy.modules.contract.entity.DoubleMovingAveragePlaceOrder;
-import com.hy.modules.contract.entity.DoubleMovingAverageStrategyConfig;
-import com.hy.modules.contract.service.DoubleMovingAverageStrategyService;
-import com.hy.modules.contract.service.DoubleMovingAverageStrategyV2Service;
+import com.hy.modules.cex.entity.DoubleMovingAveragePlaceOrder;
+import com.hy.modules.cex.entity.DoubleMovingAverageStrategyConfig;
+import com.hy.modules.dex.service.MovingAverageStrategyService;
 import io.github.hyperliquid.sdk.HyperliquidClient;
 import io.github.hyperliquid.sdk.model.info.CandleInterval;
 import io.github.hyperliquid.sdk.model.subscription.CandleSubscription;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.ta4j.core.BarSeries;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.hy.common.constants.BitgetConstant.BG_PRODUCT_TYPE_USDT_FUTURES;
 import static com.hy.common.constants.HypeConstant.SIDE_SELL;
 
 @SpringBootTest
-public class DoubleMovingAverageTests {
+public class MovingAverageTests {
 
     @Autowired
-    DoubleMovingAverageStrategyV2Service doubleMovingAverageStrategyService;
+    MovingAverageStrategyService movingAverageStrategyService;
 
-    @Autowired
-    BitgetCustomService bitgetCustomService;
 
     @Test
     public void test1() {
-        doubleMovingAverageStrategyService.managePositions();
+        movingAverageStrategyService.managePositions();
     }
 
     @Test
     public void test2() {
-        doubleMovingAverageStrategyService.managePositions();
-    }
-
-    @Test
-    public void test3() throws IOException {
-        BitgetCustomService.BitgetSession bitgetSession = bitgetCustomService.use(BitgetAccountType.RANGE);
-        String symbol = "HYPEUSDT";
-        String timeFrame = "4H";
-        ResponseResult<List<BitgetMixMarketCandlesResp>> rs = bitgetSession.getMinMarketCandles(symbol, BG_PRODUCT_TYPE_USDT_FUTURES, timeFrame, 1000);
-        if (rs.getData() == null || rs.getData().isEmpty()) return;
-        if (rs.getData().size() < 500) return;
-        BarSeries barSeries = DoubleMovingAverageStrategyService.buildSeriesFromBitgetCandles(rs.getData(), Objects.requireNonNull(BitgetEnum.getByCode(timeFrame)).getDuration());
-        DoubleMovingAverageData data = DoubleMovingAverageStrategyService.calculateIndicators(barSeries, 2);
-        System.out.println(JsonUtil.toJson(data));
-        System.out.println(doubleMovingAverageStrategyService.isStrictMATrendConfirmed(data));
+        movingAverageStrategyService.managePositions();
     }
 
 
@@ -105,7 +79,7 @@ public class DoubleMovingAverageTests {
             }
         };
         DoubleMovingAverageStrategyConfig config = CONFIG_MAP.get(SymbolEnum.BTCUSDC.getCode());
-        DoubleMovingAveragePlaceOrder order = doubleMovingAverageStrategyService.createPlaceOrder(config, SIDE_SELL, BigDecimal.valueOf(85000), BigDecimal.valueOf(86000));
+        DoubleMovingAveragePlaceOrder order = movingAverageStrategyService.createPlaceOrder(config, SIDE_SELL, BigDecimal.valueOf(85000), BigDecimal.valueOf(86000));
         System.out.println(JsonUtil.toJson(order));
     }
 

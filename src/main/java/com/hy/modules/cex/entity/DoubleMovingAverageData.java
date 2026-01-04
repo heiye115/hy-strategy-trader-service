@@ -1,4 +1,4 @@
-package com.hy.modules.contract.entity;
+package com.hy.modules.cex.entity;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

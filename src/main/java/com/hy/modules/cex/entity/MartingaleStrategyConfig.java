@@ -1,4 +1,4 @@
-package com.hy.modules.contract.entity;
+package com.hy.modules.cex.entity;
 
 import com.hy.common.enums.Direction;
 import lombok.Getter;

@@ -1,6 +1,6 @@
-package com.hy.modules.contract.task;
+package com.hy.modules.schedule;
 
-import com.hy.modules.contract.service.DoubleMovingAverageStrategyService;
+import com.hy.modules.dex.service.MovingAverageStrategyService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@ConditionalOnProperty(prefix = "task.doublemovingaveragebk", name = "enabled", havingValue = "true")
-public class DoubleMovingAverageStrategyTaskService {
+@ConditionalOnProperty(prefix = "task.movingaverage", name = "enabled", havingValue = "true")
+public class MovingAverageStrategyTaskService {
 
-    private final DoubleMovingAverageStrategyService doubleMovingAverageStrategyService;
+    private final MovingAverageStrategyService movingAverageStrategyService;
 
-    public DoubleMovingAverageStrategyTaskService(DoubleMovingAverageStrategyService doubleMovingAverageStrategyService) {
-        this.doubleMovingAverageStrategyService = doubleMovingAverageStrategyService;
+    public MovingAverageStrategyTaskService(MovingAverageStrategyService movingAverageStrategyService) {
+        this.movingAverageStrategyService = movingAverageStrategyService;
     }
 
     /**
@@ -25,7 +25,7 @@ public class DoubleMovingAverageStrategyTaskService {
     public void init() {
         //启动时执行一次
         updateDoubleMovingAverageIndicators();
-        doubleMovingAverageStrategyService.init();
+        movingAverageStrategyService.init();
     }
 
     /**
@@ -35,7 +35,7 @@ public class DoubleMovingAverageStrategyTaskService {
     @Scheduled(cron = "0 */5 * * * ?")
     public void updateDoubleMovingAverageIndicators() {
         try {
-            doubleMovingAverageStrategyService.updateDoubleMovingAverageIndicators();
+            movingAverageStrategyService.updateDoubleMovingAverageIndicators();
         } catch (Exception e) {
             log.error("updateDoubleMovingAverageIndicators-error", e);
         }
@@ -43,12 +43,12 @@ public class DoubleMovingAverageStrategyTaskService {
 
     /**
      * 刷新市场价格缓存
-     * 每5秒执行一次
+     * 每60秒执行一次
      **/
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 60000)
     public void refreshMarketPriceCache() {
         try {
-            doubleMovingAverageStrategyService.refreshMarketPriceCache();
+            movingAverageStrategyService.refreshMarketPriceCache();
         } catch (Exception e) {
             log.error("refreshMarketPriceCache-error", e);
         }
@@ -62,7 +62,7 @@ public class DoubleMovingAverageStrategyTaskService {
     @Scheduled(fixedRate = 500)
     public void detectAndEnqueueTradingSignals() {
         try {
-            doubleMovingAverageStrategyService.detectAndEnqueueTradingSignals();
+            movingAverageStrategyService.detectAndEnqueueTradingSignals();
         } catch (Exception e) {
             log.error("detectAndEnqueueTradingSignals-error", e);
         }
@@ -75,7 +75,7 @@ public class DoubleMovingAverageStrategyTaskService {
     @Scheduled(fixedDelay = 1000)
     public void managePositions() {
         try {
-            doubleMovingAverageStrategyService.managePositions();
+            movingAverageStrategyService.managePositions();
         } catch (Exception e) {
             log.error("managePositions-error", e);
         }

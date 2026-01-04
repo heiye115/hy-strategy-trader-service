@@ -1,4 +1,4 @@
-package com.hy.modules.contract.service;
+package com.hy.modules.cex.service;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.IdUtil;
@@ -12,9 +12,9 @@ import com.hy.common.service.MailService;
 import com.hy.common.utils.json.JsonUtil;
 import com.hy.common.utils.num.AmountCalculator;
 import com.hy.common.utils.num.CompoundCalculator;
-import com.hy.modules.contract.entity.MartingaleOrderLevel;
-import com.hy.modules.contract.entity.MartingalePlaceOrderParam;
-import com.hy.modules.contract.entity.MartingaleStrategyConfig;
+import com.hy.modules.cex.entity.MartingaleOrderLevel;
+import com.hy.modules.cex.entity.MartingalePlaceOrderParam;
+import com.hy.modules.cex.entity.MartingaleStrategyConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
